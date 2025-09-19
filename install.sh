@@ -3,10 +3,12 @@ set -e
 
 APP_NAME="beanping"
 APP_USER="beanping"
-APP_DIR="/opt/$APP_NAME"
+
+# use the current directory as app dir
+APP_DIR="$(pwd)"
 SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
 
-echo "📡 Installing $APP_NAME..."
+echo "📡 Installing $APP_NAME from $APP_DIR ..."
 
 # --- 1. Install system dependencies ---
 echo "🔧 Installing dependencies..."
@@ -26,27 +28,24 @@ if ! id -u "$APP_USER" >/dev/null 2>&1; then
   useradd -r -s /bin/false $APP_USER
 fi
 
-# --- 3. Setup app directory ---
-echo "📁 Setting up application directory at $APP_DIR..."
-mkdir -p "$APP_DIR"
-cp -r ./* "$APP_DIR"
+# --- 3. Ensure correct permissions on repo ---
+echo "📁 Setting ownership of repo to $APP_USER ..."
 chown -R $APP_USER:$APP_USER "$APP_DIR"
 
 # --- 4. Install Node.js (if not installed) ---
 if ! command -v node >/dev/null 2>&1; then
-  echo "📦 Installing Node.js (LTS)..."
+  echo "📦 Installing Node.js (LTS 18)..."
   curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
   apt-get install -y nodejs
 fi
 
-# --- 5. Install npm dependencies (run as root, local to app dir) ---
+# --- 5. Install npm dependencies ---
 echo "📦 Installing Node.js packages..."
-cd "$APP_DIR"
 npm install --production
 
 # --- 6. Create systemd service ---
 echo "⚙️ Creating systemd service..."
-cat > $SERVICE_FILE <<EOF
+cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=BeanPing Monitoring Dashboard
 After=network.target
@@ -57,8 +56,8 @@ WorkingDirectory=$APP_DIR
 ExecStart=$(which node) $APP_DIR/monitor.js
 Restart=always
 Environment=NODE_ENV=production
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=$APP_NAME
 
 [Install]
@@ -66,10 +65,11 @@ WantedBy=multi-user.target
 EOF
 
 # --- 7. Enable + start service ---
-echo "🚀 Enabling and starting service..."
+echo "🚀 Enabling and starting systemd service..."
 systemctl daemon-reload
 systemctl enable $APP_NAME
 systemctl restart $APP_NAME
 
 echo "✅ $APP_NAME installed successfully!"
-echo "👉 Access the dashboard at:
+echo "👉 Access the dashboard at: http://localhost:3000"
+echo "ℹ️ Logs: journalctl -u $APP_NAME -f"
