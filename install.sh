@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-APP_NAME="ping-monitor"
-APP_USER="pingmonitor"
+APP_NAME="beanping"
+APP_USER="beanping"
 APP_DIR="/opt/$APP_NAME"
 SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
 
@@ -48,7 +48,7 @@ sudo -u $APP_USER npm install --production
 echo "⚙️ Creating systemd service..."
 sudo bash -c "cat > $SERVICE_FILE" <<EOF
 [Unit]
-Description=Ping Monitor Dashboard
+Description=BeanPing Monitoring Dashboard
 After=network.target
 
 [Service]
