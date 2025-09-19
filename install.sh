@@ -10,6 +10,13 @@ SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
 
 echo "📡 Installing $APP_NAME from $APP_DIR ..."
 
+# --- SAFETY CHECK: prevent installing in /root ---
+if [[ "$APP_DIR" == /root* ]]; then
+  echo "❌ ERROR: Cannot install $APP_NAME inside /root."
+  echo "👉 Please clone the repo into a user or service directory like /srv/$APP_NAME or /opt/$APP_NAME."
+  exit 1
+fi
+
 # --- 1. Install system dependencies ---
 echo "🔧 Installing dependencies..."
 if [ -x "$(command -v apt-get)" ]; then
@@ -39,7 +46,7 @@ if ! command -v node >/dev/null 2>&1; then
   apt-get install -y nodejs
 fi
 
-# --- 5. Install npm dependencies ---
+# --- 5. Install npm dependencies (root installs, user runs) ---
 echo "📦 Installing Node.js packages..."
 npm install --production
 
