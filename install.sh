@@ -39,10 +39,10 @@ if ! command -v node >/dev/null 2>&1; then
   apt-get install -y nodejs
 fi
 
-# --- 5. Install npm dependencies ---
+# --- 5. Install npm dependencies (run as root, local to app dir) ---
 echo "📦 Installing Node.js packages..."
 cd "$APP_DIR"
-su -s /bin/bash -c "npm install --production" $APP_USER
+npm install --production
 
 # --- 6. Create systemd service ---
 echo "⚙️ Creating systemd service..."
@@ -72,5 +72,4 @@ systemctl enable $APP_NAME
 systemctl restart $APP_NAME
 
 echo "✅ $APP_NAME installed successfully!"
-echo "👉 Access the dashboard at: http://localhost:3000"
-echo "ℹ️ Logs: journalctl -u $APP_NAME -f"
+echo "👉 Access the dashboard at:
