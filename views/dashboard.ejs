@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BeanPing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            animation: {
+              "fade-in": "fadeIn 0.5s ease-in-out",
+            },
+            keyframes: {
+              fadeIn: {
+                "0%": { opacity: "0" },
+                "100%": { opacity: "1" },
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .glass-morphism {
+        background: rgba(30, 41, 59, 0.95);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .mesh-bg {
+        background: linear-gradient(
+          135deg,
+          #1e293b 0%,
+          #0f172a 50%,
+          #1e1b4b 100%
+        );
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.2s;
+        cursor: pointer;
+        border: none;
+        color: #e2e8f0;
+      }
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+        gap: 4px;
+      }
+      .menu-btn {
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 9999px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+      }
+      .menu-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .active-view {
+        background-color: rgba(96, 165, 250, 0.2) !important;
+        color: #93c5fd !important;
+      }
+      .dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        z-index: 50;
+      }
+      .node-card {
+        position: relative;
+      }
+      .list-row {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr auto;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+      }
+      .list-header-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: none;
+        color: #cbd5e1;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        font-weight: 500;
+      }
+      .list-header-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #f1f5f9;
+      }
+      .list-header-btn.active {
+        color: #60a5fa;
+      }
+      .sort-icon {
+        width: 12px;
+        height: 12px;
+        margin-left: 4px;
+        opacity: 0.7;
+        transition: transform 0.2s;
+      }
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .status-dot.online {
+        background: #22c55e;
+        box-shadow: 0 0 5px #22c55e;
+      }
+      .status-dot.offline {
+        background: #ef4444;
+      }
+      .node-link {
+        color: #dbeafe;
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .node-link:hover {
+        color: #60a5fa;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body
+    class="min-h-screen mesh-bg text-slate-200 overflow-x-hidden p-4 md:p-8"
+  >
+    <!-- Background elements -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+      <div
+        class="absolute -top-40 -right-40 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"
+      ></div>
+      <div
+        class="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"
+      ></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto space-y-6 animate-fade-in">
+      <!-- Header -->
+      <header class="text-center">
+        <h1
+          class="text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+        >
+          BeanPing
+        </h1>
+        <p class="text-slate-400 mt-2">Remote latency monitoring solution</p>
+      </header>
+
+      <!-- Problem Nodes Section -->
+      <div
+        id="problemNodesSection"
+        class="glass-morphism rounded-2xl p-6 shadow-2xl"
+      >
+        <h2
+          class="text-xl font-semibold text-red-400 mb-4 flex items-center gap-2"
+        >
+          <svg class="w-5 h-5" fill="currentColor">
+            <use href="icons.svg#icon-warning"></use>
+          </svg>
+          Problem Nodes
+        </h2>
+        <ul id="problemNodesList" class="space-y-2">
+          <% if (problemNodes.length === 0) { %>
+          <li class="text-green-400 flex items-center gap-2 text-sm">
+            <svg class="w-5 h-5" fill="currentColor">
+              <use href="icons.svg#icon-check-circle"></use>
+            </svg>
+            No problem nodes detected in the last hour.
+          </li>
+          <% } else { %> <% problemNodes.forEach(p => { %>
+          <li
+            class="flex flex-wrap justify-between items-center bg-slate-900/50 p-3 rounded-lg text-sm"
+          >
+            <div>
+              <a href="/node/<%= p.id %>" class="font-semibold node-link"
+                ><%= p.name %></a
+              >
+              <span class="text-slate-400 ml-2">(<%= p.ip %>)</span>
+            </div>
+            <div class="text-slate-300 text-right">
+              <% if (p.loss10Count >= 4) { %>
+              <span class="text-orange-400"
+                >Packet Loss (10% - <%= p.loss10Count %> times)</span
+              >
+              <% } %> <% if (p.highLossCount >= 4) { %>
+              <span class="text-red-400 ml-2"
+                >High Packet Loss (>10% - <%= p.highLossCount %> times)</span
+              >
+              <% } %> <% if (p.highJitterCount >= 4) { %>
+              <span class="ml-2 text-yellow-400"
+                >High Jitter (<%= p.highJitterCount %> times)</span
+              >
+              <% } %>
+            </div>
+          </li>
+          <% }) %> <% } %>
+        </ul>
+      </div>
+
+      <!-- Add Node + Global Tools -->
+      <div class="glass-morphism rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-center gap-3 flex-wrap">
+          <button
+            id="toggleAddNode"
+            class="btn glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-5 h-5" fill="currentColor">
+              <use href="icons.svg#icon-plus"></use>
+            </svg>
+            Add Node
+          </button>
+          <button
+            id="globalMtrBtn"
+            class="btn glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-5 h-5" fill="currentColor">
+              <use href="icons.svg#icon-mtr"></use>
+            </svg>
+            Run MTR
+          </button>
+          <button
+            id="globalTraceBtn"
+            class="btn glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-5 h-5" fill="currentColor">
+              <use href="icons.svg#icon-traceroute"></use>
+            </svg>
+            Run Traceroute
+          </button>
+          <button
+            onclick="window.location.href='/compare'"
+            class="btn glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-5 h-5" fill="currentColor">
+              <use href="icons.svg#icon-compare"></use>
+            </svg>
+            Compare
+          </button>
+        </div>
+        <form
+          id="addNodeForm"
+          class="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto] gap-4 mt-6 hidden"
+        >
+          <input
+            type="text"
+            id="name"
+            placeholder="Node Name"
+            required
+            class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+          />
+          <input
+            type="text"
+            id="ip"
+            placeholder="IP Address"
+            required
+            class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+          />
+          <button
+            type="submit"
+            class="btn glass-morphism hover:bg-blue-500/30"
+          >
+            Add
+          </button>
+        </form>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="relative max-w-2xl mx-auto">
+        <svg
+          class="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+          fill="currentColor"
+        >
+          <use href="icons.svg#icon-search"></use>
+        </svg>
+        <input
+          type="text"
+          id="nodeSearch"
+          placeholder="Search nodes by name or IP..."
+          autocomplete="off"
+          class="w-full pl-11 pr-4 py-3 glass-morphism rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+        />
+        <div
+          id="nodeDropdown"
+          class="hidden absolute top-full left-0 right-0 mt-2 glass-morphism rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50"
+        ></div>
+      </div>
+
+      <!-- Monitored Nodes Header -->
+      <div class="flex justify-between items-center mt-6">
+        <h2
+          class="text-2xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+        >
+          Monitored Nodes
+        </h2>
+        <div class="controls-container flex gap-2">
+          <button
+            id="gridBtn"
+            class="btn btn-sm glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-4 h-4" fill="currentColor">
+              <use href="icons.svg#icon-grid"></use>
+            </svg>
+          </button>
+          <button
+            id="listBtn"
+            class="btn btn-sm glass-morphism hover:bg-white/10"
+          >
+            <svg class="w-4 h-4" fill="currentColor">
+              <use href="icons.svg#icon-list"></use>
+            </svg>
+          </button>
+          <div class="relative">
+            <button
+              id="mainMenuBtn"
+              class="btn btn-sm glass-morphism hover:bg-white/10"
+            >
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"
+                />
+              </svg>
+            </button>
+            <div
+              id="mainDropdown"
+              class="dropdown glass-morphism rounded-xl shadow-2xl w-48 overflow-hidden"
+            >
+              <button
+                id="backupBtn"
+                class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10"
+              >
+                Backup Database
+              </button>
+              <button
+                id="restoreBtn"
+                class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10"
+              >
+                Restore Database
+              </button>
+              <button
+                id="vtraceBtn"
+                class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10"
+              >
+                Visual Traceroute
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- List Header -->
+      <div id="listHeader" class="hidden glass-morphism rounded-xl px-6 py-3">
+        <div
+          class="grid grid-cols-[1.5fr,1fr,1fr,1fr,1fr,auto] items-center gap-4 text-sm text-slate-400"
+        >
+          <button class="list-header-btn" data-sort="name">
+            Name <svg class="sort-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
+          <button class="list-header-btn" data-sort="ip">
+            IP Address <svg class="sort-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
+          <button class="list-header-btn" data-sort="latency">
+            Latency <svg class="sort-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
+          <button class="list-header-btn" data-sort="loss">
+            Packet Loss <svg class="sort-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
+          <button class="list-header-btn" data-sort="jitter">
+            Jitter <svg class="sort-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
+          <div class="text-center font-medium">Actions</div>
+        </div>
+      </div>
+
+      <!-- Nodes Container -->
+      <div id="nodesContainer" class="gap-6">
+        <% stats.sort((a,b) => a.name.localeCompare(b.name)).forEach(s => { %>
+        <div
+          class="node-card"
+          id="node-<%= s.id %>"
+          data-name="<%= s.name.toLowerCase() %>"
+          data-ip="<%= s.ip %>"
+        >
+          <!-- Grid view card -->
+          <div class="grid-view glass-morphism rounded-2xl p-6 shadow-2xl">
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex items-center gap-3">
+                <span class="status-dot <%= s.status %>"></span>
+                <div>
+                  <a
+                    href="/node/<%= s.id %>"
+                    class="text-lg font-semibold node-link node-name"
+                    ><%= s.name %></a
+                  >
+                  <p class="text-sm text-slate-400 node-ip"><%= s.ip %></p>
+                </div>
+              </div>
+              <div class="relative">
+                <button
+                  class="menu-btn"
+                  onclick="toggleMenu('grid', <%= s.id %>)"
+                >
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+                </button>
+                <div id="menu-grid-<%= s.id %>" class="dropdown glass-morphism rounded-xl shadow-2xl w-36 overflow-hidden">
+                  <button onclick="editNode(<%= s.id %>, `<%- s.name %>`, `<%- s.ip %>`)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Edit</button>
+                  <button onclick="deleteNode(<%= s.id %>)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Remove</button>
+                </div>
+              </div>
+            </div>
+            <div class="space-y-1 text-sm text-slate-300">
+              <p><strong>Latency:</strong> <span class="latency"><%= s.latency || 'N/A' %></span> ms</p>
+              <p><strong>Packet Loss (1h):</strong> <span class="loss">Loading...</span>%</p>
+              <p><strong>Jitter (1h):</strong> <span class="jitter"><%= s.avgJitter.toFixed(2) %></span> ms</p>
+            </div>
+            <div class="mt-4">
+              <a href="/node/<%= s.id %>" class="btn btn-sm glass-morphism hover:bg-white/10">
+                View Details
+              </a>
+            </div>
+          </div>
+
+          <!-- List view row -->
+          <div class="list-view hidden glass-morphism rounded-xl">
+            <div class="list-row">
+                <div class="flex items-center gap-3">
+                <span class="status-dot <%= s.status %>"></span>
+                <div>
+                    <a href="/node/<%= s.id %>" class="font-semibold node-link node-name"><%= s.name %></a>
+                </div>
+                </div>
+                <div class="text-sm text-slate-400 node-ip"><%= s.ip %></div>
+                <div class="text-sm"><span class="latency"><%= s.latency || 'N/A' %></span> ms</div>
+                <div class="text-sm"><span class="loss">Loading...</span>%</div>
+                <div class="text-sm"><span class="jitter"><%= s.avgJitter.toFixed(2) %></span> ms</div>
+                <div class="flex items-center justify-center gap-2">
+                <a href="/node/<%= s.id %>" class="menu-btn hover:bg-white/10">
+                    <svg class="w-5 h-5" fill="currentColor"><use href="icons.svg#icon-chart"></use></svg>
+                </a>
+                <div class="relative">
+                    <button class="menu-btn" onclick="toggleMenu('list', <%= s.id %>)">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+                    </button>
+                    <div id="menu-list-<%= s.id %>" class="dropdown glass-morphism rounded-xl shadow-2xl w-36 overflow-hidden">
+                    <button onclick="editNode(<%= s.id %>, `<%- s.name %>`, `<%- s.ip %>`)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Edit</button>
+                    <button onclick="deleteNode(<%= s.id %>)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Remove</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- Modals (Placeholders) -->
+    <div id="globalTestModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4"></div>
+    <div id="editModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4"></div>
+    <input type="file" id="restoreFileInput" accept=".db" class="hidden" />
+
+    <script>
+      const socket = io();
+      let currentGlobalTest = null;
+      let allNodes = [];
+      let filteredNodes = [];
+      let currentSort = { field: 'name', direction: 1 };
+      let nodeStats = new Map();
+
+      <% const nodesJson = JSON.stringify(stats.map(s => ({id: s.id, name: s.name, ip: s.ip, latency: s.latency, avgJitter: s.avgJitter}))); %>
+      allNodes = <%- nodesJson %>;
+      filteredNodes = [...allNodes];
+
+      const searchInput = document.getElementById('nodeSearch');
+      const nodeDropdown = document.getElementById('nodeDropdown');
+      const mainMenuBtn = document.getElementById('mainMenuBtn');
+      const mainDropdown = document.getElementById('mainDropdown');
+
+      mainMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = mainDropdown.style.display === 'block';
+        document.querySelectorAll('.dropdown, .main-dropdown').forEach(el => el.style.display = 'none');
+        mainDropdown.style.display = isVisible ? 'none' : 'block';
+      });
+
+      document.getElementById('backupBtn').addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/backup');
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.download = `beanping-backup-${timestamp}.db`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          } else { alert('Backup failed'); }
+        } catch (error) { alert('Backup error: ' + error.message); }
+        mainDropdown.style.display = 'none';
+      });
+
+      document.getElementById('restoreBtn').addEventListener('click', () => {
+        document.getElementById('restoreFileInput').click();
+        mainDropdown.style.display = 'none';
+      });
+
+      document.getElementById('restoreFileInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!file.name.endsWith('.db')) { alert('Please select a valid .db file'); return; }
+        if (!confirm('WARNING: This will replace your current database. Make sure you have a backup! Continue?')) { return; }
+
+        const formData = new FormData();
+        formData.append('backup', file);
+
+        try {
+          const response = await fetch('/api/restore', { method: 'POST', body: formData });
+          const result = await response.json();
+          if (response.ok) {
+            alert('Database restored successfully! The application will restart shortly.');
+            setTimeout(() => { window.location.reload(); }, 2000);
+          } else { alert('Restore failed: ' + result.error); }
+        } catch (error) { alert('Restore error: ' + error.message); }
+        e.target.value = '';
+      });
+
+      document.getElementById('vtraceBtn').addEventListener('click', () => {
+        window.location.href = '/vtraceroute';
+        mainDropdown.style.display = 'none';
+      });
+
+      async function updateNodePacketLoss(nodeId) {
+        try {
+          const response = await fetch(`/api/nodes/${nodeId}/stats?range=1%20HOUR`);
+          const data = await response.json();
+          if (data.length === 0) { updateNodeLossDisplay(nodeId, 0); return; }
+          const validResults = data.filter(d => d.packet_loss !== null);
+          const avgPacketLoss = validResults.length > 0 ? validResults.reduce((sum, d) => sum + d.packet_loss, 0) / validResults.length : 0;
+          updateNodeLossDisplay(nodeId, avgPacketLoss);
+        } catch (error) {
+          console.error(`Error fetching stats for node ${nodeId}:`, error);
+          updateNodeLossDisplay(nodeId, 0);
+        }
+      }
+
+      function updateNodeLossDisplay(nodeId, avgPacketLoss) {
+        const card = document.querySelector(`#node-${nodeId}`);
+        if (card) {
+          card.querySelectorAll(".loss").forEach(el => { el.textContent = avgPacketLoss.toFixed(1); });
+          const existingStats = nodeStats.get(String(nodeId)) || {};
+          nodeStats.set(String(nodeId), { ...existingStats, loss: avgPacketLoss });
+        }
+      }
+
+      async function loadAllNodeStats() {
+        allNodes.forEach(node => {
+            nodeStats.set(String(node.id), {
+                latency: node.latency || 0,
+                jitter: node.avgJitter || 0,
+                loss: -1 
+            });
+        });
+
+        const promises = allNodes.map(node => updateNodePacketLoss(node.id));
+        await Promise.all(promises);
+
+        sortNodes(currentSort.field, false);
+      }
+
+      function getSortValue(card, field) {
+        const nodeId = card.id.replace('node-', '');
+        const stats = nodeStats.get(nodeId) || {};
+        switch(field) {
+            case 'name': return card.dataset.name;
+            case 'ip': return card.dataset.ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0);
+            case 'latency': return stats.latency || -1;
+            case 'loss': return stats.loss !== undefined ? stats.loss : -1;
+            case 'jitter': return stats.jitter || -1;
+            default: return 0;
+        }
+      }
+
+      function sortNodes(field, toggleDirection = true) {
+        const container = document.getElementById('nodesContainer');
+        const cards = Array.from(container.querySelectorAll('.node-card'));
+
+        if (toggleDirection) {
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 1 ? 2 : 1;
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 1;
+            }
+        }
+
+        document.querySelectorAll('.list-header-btn').forEach(btn => {
+            btn.classList.remove('active');
+            const icon = btn.querySelector('.sort-icon');
+            icon.style.transform = 'rotate(0deg)';
+        });
+
+        const activeBtn = document.querySelector(`[data-sort="${field}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            const icon = activeBtn.querySelector('.sort-icon');
+            if (currentSort.direction === 2) { icon.style.transform = 'rotate(180deg)'; }
+        }
+
+        cards.sort((a, b) => {
+            const valueA = getSortValue(a, field);
+            const valueB = getSortValue(b, field);
+            let result = 0;
+            if (typeof valueA === 'string') {
+                result = valueA.localeCompare(valueB);
+            } else {
+                result = valueA - valueB;
+            }
+            return currentSort.direction === 1 ? result : -result;
+        });
+        cards.forEach(card => container.appendChild(card));
+      }
+
+      document.querySelectorAll('.list-header-btn[data-sort]').forEach(btn => {
+        btn.addEventListener('click', () => sortNodes(btn.dataset.sort));
+      });
+
+      function filterNodes(query) {
+        const q = query.toLowerCase().trim();
+        filteredNodes = !q ? [...allNodes] : allNodes.filter(node => node.name.toLowerCase().includes(q) || node.ip.includes(q));
+        renderDropdown();
+      }
+
+      function renderDropdown() {
+        if (filteredNodes.length === 0) {
+            nodeDropdown.innerHTML = '<div class="px-4 py-3 text-center text-slate-400">No nodes found</div>';
+        } else {
+            nodeDropdown.innerHTML = filteredNodes.map(node => `
+                <div class="px-4 py-3 cursor-pointer hover:bg-white/10 transition" onclick="navigateToNode(${node.id})">
+                    <div class="font-medium text-slate-100">${node.name}</div>
+                    <div class="text-sm text-slate-400">${node.ip}</div>
+                </div>
+            `).join('');
+        }
+      }
+
+      function navigateToNode(nodeId) { window.location.href = `/node/${nodeId}`; }
+      
+      function showDropdown() {
+        renderDropdown();
+        nodeDropdown.style.display = 'block';
+      }
+
+      searchInput.addEventListener('focus', showDropdown);
+      searchInput.addEventListener('input', (e) => {
+        filterNodes(e.target.value);
+        showDropdown();
+      });
+
+      document.addEventListener('click', (e) => {
+        const searchContainer = e.target.closest('.relative.max-w-2xl');
+        const controlsContainer = e.target.closest('.controls-container');
+
+        if (!searchContainer) {
+            nodeDropdown.style.display = 'none';
+        }
+        if (!controlsContainer) {
+            mainDropdown.style.display = 'none';
+        }
+
+        if (!e.target.closest(".menu-btn")) {
+            document.querySelectorAll(".dropdown").forEach(el => el.style.display = "none");
+            document.querySelectorAll(".node-card.z-20").forEach(c => c.classList.remove('z-20'));
+        }
+      });
+
+      document.getElementById("globalMtrBtn").addEventListener("click", () => openGlobalTestModal("mtr"));
+      document.getElementById("globalTraceBtn").addEventListener("click", () => openGlobalTestModal("traceroute"));
+
+      function openGlobalTestModal(type) {
+        currentGlobalTest = type;
+        const modal = document.getElementById("globalTestModal");
+        modal.innerHTML = `
+        <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+            <header class="p-4 border-b border-white/10 flex justify-between items-center"><h2 class="text-xl font-semibold text-blue-300">Run ${type.toUpperCase()}</h2><button onclick="closeGlobalTestModal()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button></header>
+            <form id="globalTestForm" class="p-6 space-y-4">
+              <div>
+                  <label class="block text-slate-300 mb-2">Target IP/Hostname</label>
+                  <input type="text" id="globalTestIp" required class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+              </div>
+              <div class="flex justify-end gap-2 pt-2">
+                  <button type="button" onclick="closeGlobalTestModal()" class="btn glass-morphism hover:bg-white/10">Cancel</button>
+                  <button type="submit" class="btn glass-morphism hover:bg-blue-500/30">Run</button>
+              </div>
+            </form>
+        </div>`;
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        document.getElementById("globalTestForm").addEventListener("submit", handleGlobalTestSubmit);
+      }
+      function closeGlobalTestModal() { document.getElementById("globalTestModal").classList.add("hidden"); }
+
+      async function handleGlobalTestSubmit(e) {
+        e.preventDefault();
+        const ip = document.getElementById("globalTestIp").value.trim();
+        if (!ip) return;
+        const runBtn = e.target.querySelector("button[type='submit']");
+        runBtn.disabled = true; runBtn.innerHTML = `Running...`;
+        try {
+            const res = await fetch(`/api/${currentGlobalTest}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ip }) });
+            const data = await res.json();
+            if (data.output) { showResultModal(`${currentGlobalTest.toUpperCase()} Results`, data.output); }
+            else { alert(`${currentGlobalTest.toUpperCase()} failed: ` + (data.error || "Unknown error")); }
+        } catch (err) { alert(`${currentGlobalTest.toUpperCase()} request failed: ` + err.message); }
+        runBtn.disabled = false; runBtn.textContent = "Run";
+        closeGlobalTestModal();
+      }
+
+      function showResultModal(title, output) {
+        const modal = document.createElement("div");
+        modal.className = "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in";
+        modal.innerHTML = `
+        <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+          <header class="p-4 border-b border-white/10 flex justify-between items-center">
+            <h2 class="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">${title}</h2>
+            <button onclick="this.closest('.fixed').remove()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button>
+          </header>
+          <div class="p-6 bg-slate-900/50 flex-grow overflow-auto"><pre class="whitespace-pre-wrap text-sm text-slate-300 break-words">${output}</pre></div>
+        </div>`;
+        modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+      }
+
+      function sanitizeIp(ip) { return ip.trim().replace(/[^0-9a-fA-F\.:]/g, ""); }
+
+      document.getElementById("toggleAddNode").addEventListener("click", () => {
+        document.getElementById("addNodeForm").classList.toggle("hidden");
+      });
+
+      document.getElementById("addNodeForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document.getElementById("name").value.trim();
+        let ip = sanitizeIp(document.getElementById("ip").value);
+        if (!name || !ip) { alert("Please enter a valid name and IP address"); return; }
+        await fetch("/api/nodes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ip }) });
+        e.target.reset();
+        document.getElementById("addNodeForm").classList.add("hidden");
+      });
+
+      function editNode(id, name, ip) {
+        const modal = document.getElementById("editModal");
+        modal.innerHTML = `
+        <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+          <header class="p-4 border-b border-white/10 flex justify-between items-center"><h2 class="text-xl font-semibold text-blue-300">Edit Node</h2><button onclick="closeEditModal()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button></header>
+          <form id="editNodeForm" class="p-6 space-y-4">
+            <input type="hidden" id="editId" value="${id}">
+            <div>
+              <label class="block text-slate-300 mb-2">Name</label>
+              <input type="text" id="editName" value="${name}" required class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-slate-300 mb-2">IP Address</label>
+              <input type="text" id="editIp" value="${ip}" required class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <button type="button" onclick="closeEditModal()" class="btn glass-morphism hover:bg-white/10">Cancel</button>
+              <button type="submit" class="btn glass-morphism hover:bg-blue-500/30">Save</button>
+            </div>
+          </form>
+        </div>`;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById("editNodeForm").addEventListener("submit", handleEditNodeSubmit);
+      }
+      function closeEditModal() { document.getElementById("editModal").classList.add("hidden"); }
+
+      async function handleEditNodeSubmit(e) {
+        e.preventDefault();
+        const id = document.getElementById("editId").value;
+        const name = document.getElementById("editName").value.trim();
+        let ip = sanitizeIp(document.getElementById("editIp").value);
+        if (!name || !ip) { alert("Please enter a valid name and IP address"); return; }
+        await fetch(`/api/nodes/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ip }) });
+        closeEditModal();
+      }
+
+      async function deleteNode(id) {
+        if (confirm("Are you sure you want to delete this node?")) {
+          await fetch(`/api/nodes/${id}`, { method: "DELETE" });
+        }
+      }
+
+      function toggleMenu(view, id) {
+        const menuId = `menu-${view}-${id}`;
+        const menu = document.getElementById(menuId);
+        const card = menu.closest('.node-card');
+        const isOpening = menu.style.display !== "block";
+
+        document.querySelectorAll(".dropdown").forEach(el => el.style.display = "none");
+        document.querySelectorAll(".node-card").forEach(c => c.classList.remove('z-20'));
+
+        if (isOpening) {
+            menu.style.display = "block";
+            if (card) card.classList.add('z-20');
+        }
+      }
+
+      function applyView(mode) {
+        localStorage.setItem("viewMode", mode);
+        const container = document.getElementById("nodesContainer");
+        const gridBtn = document.getElementById("gridBtn");
+        const listBtn = document.getElementById("listBtn");
+        const listHeader = document.getElementById("listHeader");
+        document.querySelectorAll(".node-card").forEach(card => {
+            card.querySelector(".grid-view").classList.toggle("hidden", mode === "list");
+            card.querySelector(".list-view").classList.toggle("hidden", mode === "grid");
+        });
+        if (mode === "grid") {
+            container.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
+            listHeader.classList.add("hidden");
+            gridBtn.classList.add("active-view");
+            listBtn.classList.remove("active-view");
+        } else {
+            container.className = "flex flex-col gap-3";
+            listHeader.classList.remove("hidden");
+            listBtn.classList.add("active-view");
+            gridBtn.classList.remove("active-view");
+        }
+      }
+      gridBtn.addEventListener("click", () => applyView("grid"));
+      listBtn.addEventListener("click", () => applyView("list"));
+      
+      document.addEventListener('DOMContentLoaded', () => {
+          loadAllNodeStats();
+          applyView(localStorage.getItem("viewMode") || "grid");
+      });
+
+      socket.on("pingUpdate", (data) => {
+        const card = document.querySelector(`#node-${data.nodeId}`);
+        if (card) {
+            const nodeIdStr = String(data.nodeId);
+            card.querySelectorAll(".latency").forEach(el => el.textContent = data.latency || "N/A");
+            card.querySelectorAll(".jitter").forEach(el => el.textContent = (data.jitter || 0).toFixed(2));
+            card.querySelectorAll(".status-dot").forEach(el => el.className = "status-dot " + data.status);
+            const existingStats = nodeStats.get(nodeIdStr) || {};
+            nodeStats.set(nodeIdStr, { ...existingStats, latency: data.latency || 0, jitter: data.jitter || 0 });
+            updateNodePacketLoss(data.nodeId);
+        }
+      });
+
+      socket.on("problemNodesUpdate", (problemNodes) => {
+        const list = document.getElementById("problemNodesList");
+        list.innerHTML = "";
+        if (problemNodes.length === 0) {
+          list.innerHTML = `<li class="text-green-400 flex items-center gap-2 text-sm">
+            <svg class="w-5 h-5" fill="currentColor"><use href="icons.svg#icon-check-circle"></use></svg>
+            No problem nodes detected in the last hour.
+          </li>`;
+        } else {
+          problemNodes.forEach(p => {
+            const li = document.createElement("li");
+            li.className = "flex flex-wrap justify-between items-center bg-slate-900/50 p-3 rounded-lg text-sm";
+            li.innerHTML = `
+              <div>
+                <a href="/node/${p.id}" class="font-semibold node-link">${p.name}</a>
+                <span class="text-slate-400 ml-2">(${p.ip})</span>
+              </div>
+              <div class="text-slate-300 text-right">
+                ${p.loss10Count >= 4 ? `<span class="text-orange-400">Packet Loss (10% - ${p.loss10Count} times)</span>` : ""}
+                ${p.highLossCount >= 4 ? `<span class="text-red-400 ml-2">High Packet Loss (>10% - ${p.highLossCount} times)</span>` : ""}
+                ${p.highJitterCount >= 4 ? `<span class="ml-2 text-yellow-400">High Jitter (${p.highJitterCount} times)</span>` : ""}
+              </div>
+            `;
+            list.appendChild(li);
+          });
+        }
+      });
+
+      socket.on("nodeAdded", (node) => {
+        allNodes.push({id: node.id, name: node.name, ip: node.ip});
+        nodeStats.set(String(node.id), { latency: 0, loss: 0, jitter: 0 });
+        const container = document.getElementById("nodesContainer");
+        const card = document.createElement("div");
+        card.className = "node-card";
+        card.id = `node-${node.id}`;
+        card.setAttribute('data-name', node.name.toLowerCase());
+        card.setAttribute('data-ip', node.ip);
+        card.innerHTML = `
+            <div class="grid-view glass-morphism rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <span class="status-dot offline"></span>
+                        <div>
+                            <a href="/node/${node.id}" class="text-lg font-semibold node-link node-name">${node.name}</a>
+                            <p class="text-sm text-slate-400 node-ip">${node.ip}</p>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <button class="menu-btn" onclick="toggleMenu('grid', ${node.id})"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg></button>
+                        <div id="menu-grid-${node.id}" class="dropdown glass-morphism rounded-xl shadow-2xl w-36 overflow-hidden">
+                            <button onclick="editNode(${node.id}, \`${node.name}\`, \`${node.ip}\`)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Edit</button>
+                            <button onclick="deleteNode(${node.id})" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Remove</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-1 text-sm text-slate-300">
+                    <p><strong>Latency:</strong> <span class="latency">N/A</span> ms</p>
+                    <p><strong>Packet Loss (1h):</strong> <span class="loss">Loading...</span>%</p>
+                    <p><strong>Jitter (1h):</strong> <span class="jitter">0.00</span> ms</p>
+                </div>
+                <div class="mt-4"><a href="/node/${node.id}" class="btn btn-sm glass-morphism hover:bg-white/10">View Details</a></div>
+            </div>
+            <div class="list-view hidden glass-morphism rounded-xl">
+                <div class="list-row">
+                    <div class="flex items-center gap-3">
+                        <span class="status-dot offline"></span>
+                        <div><a href="/node/${node.id}" class="font-semibold node-link node-name">${node.name}</a></div>
+                    </div>
+                    <div class="text-sm text-slate-400 node-ip">${node.ip}</div>
+                    <div class="text-sm"><span class="latency">N/A</span> ms</div>
+                    <div class="text-sm"><span class="loss">Loading...</span>%</div>
+                    <div class="text-sm"><span class="jitter">0.00</span> ms</div>
+                    <div class="flex items-center justify-center gap-2">
+                        <a href="/node/${node.id}" class="menu-btn hover:bg-white/10"><svg class="w-5 h-5" fill="currentColor"><use href="icons.svg#icon-chart"></use></svg></a>
+                        <div class="relative">
+                            <button class="menu-btn" onclick="toggleMenu('list', ${node.id})"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg></button>
+                            <div id="menu-list-${node.id}" class="dropdown glass-morphism rounded-xl shadow-2xl w-36 overflow-hidden">
+                                <button onclick="editNode(${node.id}, \`${node.name}\`, \`${node.ip}\`)" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Edit</button>
+                                <button onclick="deleteNode(${node.id})" class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        container.appendChild(card);
+        applyView(localStorage.getItem("viewMode") || "grid");
+        updateNodePacketLoss(node.id);
+        sortNodes(currentSort.field, false);
+      });
+
+      socket.on("nodeUpdated", (node) => {
+        const nodeIndex = allNodes.findIndex(n => n.id == node.id);
+        if (nodeIndex !== -1) { allNodes[nodeIndex] = {id: node.id, name: node.name, ip: node.ip}; }
+        const card = document.querySelector(`#node-${node.id}`);
+        if (card) {
+          card.setAttribute('data-name', node.name.toLowerCase());
+          card.setAttribute('data-ip', node.ip);
+          card.querySelectorAll(".node-name").forEach(el => el.textContent = node.name);
+          card.querySelectorAll(".node-ip").forEach(el => el.textContent = node.ip);
+        }
+      });
+
+      socket.on("nodeRemoved", (node) => {
+        allNodes = allNodes.filter(n => n.id != node.id);
+        nodeStats.delete(String(node.id));
+        const card = document.querySelector(`#node-${node.id}`);
+        if (card) card.remove();
+      });
+    </script>
+  </body>
+</html>

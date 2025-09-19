@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Visual Traceroute</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc }
+    #map { height: 70vh; border-radius: 8px; margin-top: 1rem; }
+    .hop-color-box {
+      display: inline-block;
+      width: 14px; height: 14px;
+      margin-right: 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="p-6">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <h1 class="text-3xl font-bold text-blue-400">Visual Traceroute</h1>
+
+    <form id="traceForm" class="flex gap-3">
+      <input
+        id="traceIp"
+        type="text"
+        placeholder="Enter IP or Hostname"
+        required
+        class="flex-grow p-2 rounded bg-slate-800 border border-slate-600"
+      />
+      <button type="submit" class="btn btn-primary bg-blue-600 px-4 py-2 rounded">
+        Run
+      </button>
+    </form>
+
+    <div id="map"></div>
+    <div id="traceInfo" class="bg-slate-800 p-4 rounded text-sm max-h-[30vh] overflow-y-auto"></div>
+  </div>
+
+  <script>
+    const hopColors = [
+      "#e11d48","#f59e0b","#10b981","#3b82f6","#8b5cf6",
+      "#ec4899","#14b8a6","#f97316","#64748b"
+    ];
+
+    const map = L.map("map").setView([20, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    let traceLayer = L.layerGroup().addTo(map);
+
+    document.getElementById("traceForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const ip = document.getElementById("traceIp").value.trim();
+      if (!ip) return;
+      document.getElementById("traceInfo").innerHTML = "Running traceroute...";
+
+      try {
+        const res = await fetch("/api/traceroute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ip })
+        });
+        const data = await res.json();
+        if (data.error) {
+          document.getElementById("traceInfo").innerHTML =
+            `<div class="text-red-400">Error: ${data.error}</div>`;
+          return;
+        }
+
+        const hops = parseTraceroute(data.output);
+        await drawHops(hops);
+      } catch (err) {
+        document.getElementById("traceInfo").innerHTML =
+          `<div class="text-red-400">Request failed: ${err.message}</div>`;
+      }
+    });
+
+    function parseTraceroute(output) {
+      const lines = output.split("\n");
+      const ips = [];
+      for (const line of lines) {
+        if (/^\s*\d+/.test(line)) {
+          const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (match) ips.push(match[1]);
+        }
+      }
+      return ips;
+    }
+
+    function isPrivateIp(ip) {
+      return /^10\./.test(ip) ||
+             /^192\.168\./.test(ip) ||
+             /^172\.(1[6-9]|2\d|3[0-1])\./.test(ip) ||
+             /^127\./.test(ip) ||
+             /^169\.254\./.test(ip) ||
+             /^100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\./.test(ip);
+    }
+
+    function countryCodeToEmoji(cc) {
+      if (!cc) return "";
+      return cc.toUpperCase().replace(/./g, c =>
+        String.fromCodePoint(c.charCodeAt(0) + 127397)
+      );
+    }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    async function drawHops(hops) {
+      traceLayer.clearLayers();
+      const traceInfo = document.getElementById("traceInfo");
+      traceInfo.innerHTML = "";
+      const latlngs = [];
+
+      for (let i = 0; i < hops.length; i++) {
+        const ip = hops[i];
+        const hopColor = hopColors[i % hopColors.length];
+
+        if (isPrivateIp(ip)) {
+          traceInfo.innerHTML += `<div><span class="hop-color-box" style="background:${hopColor}"></span>Hop ${i+1}: ${ip} (private / no geo)</div>`;
+          continue;
+        }
+
+        try {
+          const geoRes = await fetch(`https://api.ipapi.is/?q=${ip}`);
+          const g = await geoRes.json();
+
+          const lat = g.latitude || g.location?.latitude;
+          const lon = g.longitude || g.location?.longitude;
+          const city = g.city || g.location?.city;
+          const state = g.state || g.location?.state;
+          const country = g.country || g.location?.country;
+          const cc = g.country_code || g.location?.country_code;
+          const flag = countryCodeToEmoji(cc);
+
+          if (lat && lon) {
+            const pos = [lat, lon];
+            latlngs.push(pos);
+
+            // Custom color marker
+            const markerIcon = L.divIcon({
+              className: "custom-hop-marker",
+              html: `<div style="background:${hopColor};width:16px;height:16px;border-radius:50%;border:2px solid white"></div>`
+            });
+
+            L.marker(pos, { icon: markerIcon })
+              .addTo(traceLayer)
+              .bindPopup(`
+                <b>Hop ${i+1}</b><br>
+                <b>IP:</b> ${ip}<br>
+                <b>City:</b> ${city || "Unknown"}<br>
+                <b>Region:</b> ${state || ""}<br>
+                <b>Country:</b> ${country || ""} ${flag}<br>
+                <b>ASN:</b> ${g.asn?.asn || ""}<br>
+                <b>Org:</b> ${g.org || g.company?.name || ""}
+              `);
+
+            // Draw colored line from previous hop
+            if (latlngs.length > 1) {
+              const prev = latlngs[latlngs.length - 2];
+              L.polyline([prev, pos], { color: hopColor, weight: 3 }).addTo(traceLayer);
+            }
+
+            traceInfo.innerHTML += `<div><span class="hop-color-box" style="background:${hopColor}"></span>Hop ${i+1}: ${ip} → ${city || "Unknown"}, ${country || ""} ${flag}</div>`;
+          } else {
+            traceInfo.innerHTML += `<div><span class="hop-color-box" style="background:${hopColor}"></span>Hop ${i+1}: ${ip} (geo not found)</div>`;
+          }
+        } catch (err) {
+          traceInfo.innerHTML += `<div><span class="hop-color-box" style="background:${hopColor}"></span>Hop ${i+1}: ${ip} (geo lookup failed)</div>`;
+        }
+
+        await sleep(400); // avoid hammering
+      }
+
+      if (latlngs.length > 1) {
+        map.fitBounds(latlngs);
+      } else if (latlngs.length === 1) {
+        map.setView(latlngs[0], 6);
+      }
+    }
+  </script>
+</body>
+</html>

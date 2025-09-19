@@ -1,0 +1,27 @@
+{
+  "name": "ping-monitor",
+  "version": "1.0.0",
+  "description": "A Node.js network monitoring dashboard with real-time updates, SQLite storage, and modern web UI.",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js",
+    "dev": "nodemon monitor.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^8.0.0",
+    "body-parser": "^1.20.2",
+    "ejs": "^3.1.9",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "ping": "^0.4.4",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Your Name",
+  "license": "MIT"
+}
