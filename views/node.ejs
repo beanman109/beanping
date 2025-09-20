@@ -33,8 +33,12 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
       .mesh-bg {
-        /* MODIFIED: Animation and oversized background-size removed for a static gradient */
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e1b4b 100%);
+        background: linear-gradient(
+          135deg,
+          #1e293b 0%,
+          #0f172a 50%,
+          #1e1b4b 100%
+        );
       }
       canvas {
         width: 100% !important;
@@ -42,7 +46,9 @@
       }
     </style>
   </head>
-  <body class="min-h-screen mesh-bg text-slate-200 overflow-x-hidden p-4 md:p-8">
+  <body
+    class="min-h-screen mesh-bg text-slate-200 overflow-x-hidden p-4 md:p-8"
+  >
     <!-- Animated background elements -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
       <div
@@ -130,7 +136,9 @@
         class="glass-morphism rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center"
       >
         <div>
-          <h3 class="text-sm font-semibold text-blue-300 uppercase tracking-wider">
+          <h3
+            class="text-sm font-semibold text-blue-300 uppercase tracking-wider"
+          >
             Avg Latency
           </h3>
           <p class="text-3xl font-bold text-blue-400 mt-1">
@@ -311,7 +319,8 @@
         function createChart(ctx, color, label, data) {
           const chartOptions = JSON.parse(JSON.stringify(baseOptions));
           chartOptions.plugins.tooltip.callbacks = {
-            label: (context) => `${context.dataset.label}: ${context.formattedValue} ms`,
+            label: (context) =>
+              `${context.dataset.label}: ${context.formattedValue} ms`,
           };
 
           return new Chart(ctx, {
@@ -347,7 +356,8 @@
         const lossOptions = JSON.parse(JSON.stringify(baseOptions));
         lossOptions.scales.y.max = 100;
         lossOptions.plugins.tooltip.callbacks = {
-          label: (context) => `${context.dataset.label}: ${context.formattedValue}%`,
+          label: (context) =>
+            `${context.dataset.label}: ${context.formattedValue}%`,
         };
         charts.push(
           new Chart(document.getElementById("lossChart").getContext("2d"), {
@@ -365,7 +375,8 @@
                   fill: true,
                   tension: 0.4,
                   pointRadius: 0,
-                  stepped: true, // Packet loss is better visualized as stepped
+                  spanGaps: false,
+                  // FIX: Removed `stepped: true` to make the line smooth
                 },
               ],
             },
@@ -469,7 +480,9 @@
 
       document
         .getElementById("mtrBtn")
-        .addEventListener("click", () => runTool("mtrBtn", "mtr", "MTR Results"));
+        .addEventListener("click", () =>
+          runTool("mtrBtn", "mtr", "MTR Results")
+        );
       document
         .getElementById("traceBtn")
         .addEventListener("click", () =>
