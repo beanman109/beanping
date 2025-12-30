@@ -178,6 +178,23 @@
     </div>
 
     <div class="max-w-7xl mx-auto space-y-6 animate-fade-in flex-grow w-full">
+      <!-- UPDATE BANNER (Hidden by default) -->
+      <div id="updateBanner" class="hidden glass-morphism bg-emerald-500/10 border-emerald-500/30 p-4 rounded-xl items-center justify-between shadow-xl mb-4">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-emerald-500/20 rounded-full text-emerald-400">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" /></svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-emerald-100">Update Available!</h3>
+            <p class="text-sm text-emerald-200/80">A new version (<span id="newVersionNumber"></span>) is available on GitHub.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <a href="https://github.com/beanman109/beanping" target="_blank" class="btn btn-sm bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">View on GitHub</a>
+          <button onclick="document.getElementById('updateBanner').classList.add('hidden')" class="text-slate-400 hover:text-white transition">&times;</button>
+        </div>
+      </div>
+
       <!-- Header -->
       <header class="text-center">
         <h1
@@ -422,6 +439,8 @@
       <!-- Nodes Container -->
       <div id="nodesContainer" class="gap-6">
         <% stats.sort((a,b) => a.name.localeCompare(b.name)).forEach(s => { 
+           // Pre-calculate display values to avoid clutter in HTML
+           // s.packet_loss and s.avgJitter now come pre-calculated from the backend
            const loss = (s.packet_loss || 0).toFixed(1);
            const jitter = (s.avgJitter || 0).toFixed(2);
            const latency = s.latency !== null ? s.latency : 'N/A';
@@ -504,9 +523,9 @@
         <% }) %>
       </div>
 
-      <!-- Footer -->
+      <!-- Footer with Version -->
       <footer class="mt-8 text-center text-slate-500 text-sm pb-4">
-        v1.1.0
+        v1.1.1
       </footer>
 
     </div>
@@ -593,6 +612,53 @@
       let currentSort = { field: 'name', direction: 1 };
       let nodeStats = new Map();
 
+      // CURRENT LOCAL VERSION
+      const LOCAL_VERSION = '1.1.0';
+      const REPO_FILE_URL = 'https://raw.githubusercontent.com/beanman109/beanping/refs/heads/main/views/dashboard.ejs';
+
+      // --- Update Checker ---
+      document.addEventListener('DOMContentLoaded', checkForUpdates);
+
+      async function checkForUpdates() {
+        try {
+          // Fetch raw EJS file from GitHub
+          const response = await fetch(REPO_FILE_URL);
+          if (!response.ok) return; // Silent fail if offline or git down
+          
+          const text = await response.text();
+          
+          // Regex to find "vX.X.X" at the very end of the file or near footer
+          // We look for the pattern: v(\d+\.\d+\.\d+) inside the footer or script area
+          const versionMatch = text.match(/v(\d+\.\d+\.\d+)/g);
+          
+          if (versionMatch && versionMatch.length > 0) {
+            // Usually the last match is the one in the footer or the const definition we just added
+            // Let's grab the version string (e.g., "1.1.0")
+            const remoteVersionString = versionMatch[versionMatch.length - 1].replace('v', '');
+            
+            if (isNewerVersion(LOCAL_VERSION, remoteVersionString)) {
+               document.getElementById('newVersionNumber').textContent = 'v' + remoteVersionString;
+               document.getElementById('updateBanner').classList.remove('hidden');
+               document.getElementById('updateBanner').classList.add('flex');
+            }
+          }
+        } catch (e) {
+          console.log('Update check failed:', e);
+        }
+      }
+
+      function isNewerVersion(local, remote) {
+        const localParts = local.split('.').map(Number);
+        const remoteParts = remote.split('.').map(Number);
+        
+        for (let i = 0; i < 3; i++) {
+          if (remoteParts[i] > localParts[i]) return true;
+          if (remoteParts[i] < localParts[i]) return false;
+        }
+        return false;
+      }
+
+      // --- Node Data ---
       // OPTIMIZATION: Data now comes fully pre-populated from backend. No fetches needed.
       <% const nodesJson = JSON.stringify(stats.map(s => ({
           id: s.id, 
