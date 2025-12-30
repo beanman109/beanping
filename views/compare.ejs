@@ -28,7 +28,6 @@
     </script>
     <style>
       .glass-morphism {
-        /* FIX: Increased opacity to 0.95 for a "fogged glass" effect */
         background: rgba(30, 41, 59, 0.95);
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -69,136 +68,79 @@
   >
     <!-- Background elements -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-      <div
-        class="absolute -top-40 -right-40 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"
-      ></div>
+      <div class="absolute -top-40 -right-40 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"></div>
+      <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"></div>
     </div>
 
     <div class="max-w-7xl mx-auto space-y-6 animate-fade-in">
       <!-- Header -->
       <header class="flex flex-wrap justify-between items-center gap-4">
-        <h1
-          class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-        >
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
           Compare Nodes
         </h1>
-        <a
-          href="/"
-          class="btn glass-morphism hover:bg-white/10 transition-all duration-300 flex items-center gap-2 font-semibold"
-        >
-          <svg class="w-5 h-5" fill="currentColor">
-            <use xlink:href="/icons.svg#icon-back" />
-          </svg>
+        <a href="/" class="btn glass-morphism hover:bg-white/10 transition-all duration-300 flex items-center gap-2 font-semibold">
+          <svg class="w-5 h-5" fill="currentColor"><use xlink:href="/icons.svg#icon-back" /></svg>
           Back to Dashboard
         </a>
       </header>
 
       <!-- Node Selection -->
       <div class="glass-morphism rounded-2xl p-6 shadow-2xl relative z-10">
-        <h2 class="text-lg font-semibold text-blue-300 mb-4">
-          Select Nodes to Compare
-        </h2>
+        <h2 class="text-lg font-semibold text-blue-300 mb-4">Select Nodes to Compare</h2>
         <div class="relative max-w-md">
-          <svg
-            class="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-            fill="currentColor"
-          >
-            <use href="icons.svg#icon-search"></use>
-          </svg>
-          <input
-            type="text"
-            id="nodeSearch"
-            placeholder="Search nodes by name or IP..."
-            autocomplete="off"
-            class="w-full pl-11 pr-4 py-3 glass-morphism rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-          />
-          <div
-            id="nodeDropdown"
-            class="hidden absolute top-full left-0 right-0 mt-2 glass-morphism rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50"
-          ></div>
+          <svg class="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="currentColor"><use href="icons.svg#icon-search"></use></svg>
+          <input type="text" id="nodeSearch" placeholder="Search nodes by name or IP..." autocomplete="off" class="w-full pl-11 pr-4 py-3 glass-morphism rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition" />
+          <div id="nodeDropdown" class="hidden absolute top-full left-0 right-0 mt-2 glass-morphism rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50"></div>
         </div>
 
         <div id="selectedNodes" class="flex flex-wrap gap-2 mt-4"></div>
 
-        <div
-          class="flex justify-between items-center mt-4 border-t border-white/10 pt-4"
-        >
-          <span class="text-slate-400 text-sm" id="selectionCount"
-            >0 nodes selected</span
-          >
-          <button
-            onclick="clearSelection()"
-            class="btn btn-sm glass-morphism hover:bg-white/10"
-          >
-            Clear All
-          </button>
+        <div class="flex justify-between items-center mt-4 border-t border-white/10 pt-4">
+          <span class="text-slate-400 text-sm" id="selectionCount">0 nodes selected</span>
+          <button onclick="clearSelection()" class="btn btn-sm glass-morphism hover:bg-white/10">Clear All</button>
         </div>
       </div>
 
       <!-- Controls -->
-      <div
-        id="controlsSection"
-        class="glass-morphism rounded-2xl p-4 md:p-6 flex items-center gap-4 flex-wrap"
-      >
+      <div id="controlsSection" class="glass-morphism rounded-2xl p-4 md:p-6 flex items-center gap-4 flex-wrap">
         <label class="text-slate-300 font-medium">Time Range:</label>
-        <select
-          id="timeRange"
-          class="glass-morphism px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-        >
+        <select id="timeRange" class="glass-morphism px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
           <option value="1 HOUR" selected>Last Hour</option>
           <option value="1 DAY">Last Day</option>
           <option value="7 DAYS">Last Week</option>
           <option value="1 MONTH">Last Month</option>
           <option value="3 MONTHS">Last 3 Months</option>
         </select>
-        <button
-          id="pauseBtn"
-          class="btn btn-sm glass-morphism hover:bg-white/10"
-        >
-          <svg class="w-4 h-4" fill="currentColor">
-            <use xlink:href="/icons.svg#icon-pause" />
-          </svg>
-          Pause
+        <button id="pauseBtn" class="btn btn-sm glass-morphism hover:bg-white/10">
+          <svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-pause" /></svg> Pause Graph
         </button>
-        <span class="text-slate-400 text-sm flex items-center gap-2 ml-auto">
-          <svg class="w-4 h-4" fill="currentColor">
-            <use xlink:href="/icons.svg#icon-warning" />
-          </svg>
-          Drag to zoom, right‑click to reset
-        </span>
+        <button id="resetZoomBtn" class="btn btn-sm glass-morphism hover:bg-white/10 ml-auto">
+             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg> Reset Zoom
+        </button>
       </div>
 
       <!-- Charts Section -->
       <div id="chartsSection" class="space-y-6">
         <div class="glass-morphism rounded-2xl p-4 md:p-6">
           <div class="flex justify-between items-start mb-4">
-            <h2 class="text-lg font-semibold text-blue-300">
-              Latency Comparison (ms)
-            </h2>
-            <div class="text-sm" id="latencyLegend"></div>
+            <h2 class="text-lg font-semibold text-blue-300">Latency Comparison (ms)</h2>
+            <div class="text-sm flex flex-wrap gap-x-4 gap-y-1" id="latencyLegend"></div>
           </div>
           <canvas id="latencyChart"></canvas>
         </div>
 
         <div class="glass-morphism rounded-2xl p-4 md:p-6">
           <div class="flex justify-between items-start mb-4">
-            <h2 class="text-lg font-semibold text-red-400">
-              Packet Loss Comparison (%)
-            </h2>
-            <div class="text-sm" id="lossLegend"></div>
+            <h2 class="text-lg font-semibold text-red-400">Packet Loss Comparison (%)</h2>
+            <div class="text-sm flex flex-wrap gap-x-4 gap-y-1" id="lossLegend"></div>
           </div>
           <canvas id="lossChart"></canvas>
         </div>
 
         <div class="glass-morphism rounded-2xl p-4 md:p-6">
           <div class="flex justify-between items-start mb-4">
-            <h2 class="text-lg font-semibold text-green-400">
-              Jitter Comparison (ms)
-            </h2>
-            <div class="text-sm" id="jitterLegend"></div>
+            <h2 class="text-lg font-semibold text-green-400">Jitter Comparison (ms)</h2>
+            <div class="text-sm flex flex-wrap gap-x-4 gap-y-1" id="jitterLegend"></div>
           </div>
           <canvas id="jitterChart"></canvas>
         </div>
@@ -211,6 +153,7 @@
       let liveUpdatesPaused = false;
       let allNodes = [];
       let filteredNodes = [];
+      let currentRange = "1 HOUR";
 
       <% const nodesJson = JSON.stringify(nodes); %>
       allNodes = <%- nodesJson %>;
@@ -220,6 +163,37 @@
 
       const searchInput = document.getElementById('nodeSearch');
       const dropdown = document.getElementById('nodeDropdown');
+
+      // --- Sync Scales ---
+      function syncScales(chart) {
+        const min = chart.scales.x.min;
+        const max = chart.scales.x.max;
+        charts.forEach(c => {
+           if(c !== chart) {
+               c.options.scales.x.min = min;
+               c.options.scales.x.max = max;
+               c.update('none'); 
+           }
+        });
+      }
+
+      // --- Downsampling ---
+      function downsampleData(data, targetCount = 1500) {
+          if (data.length <= targetCount) return data;
+          const step = Math.ceil(data.length / targetCount);
+          const sampled = [];
+          for (let i = 0; i < data.length; i += step) {
+              let sumY = 0; let count = 0;
+              for (let j = 0; j < step && (i + j) < data.length; j++) {
+                  const val = data[i+j].y;
+                  if (val !== null) { sumY += val; count++; }
+              }
+              const midIndex = Math.min(i + Math.floor(step/2), data.length - 1);
+              const yVal = count > 0 ? sumY / count : null;
+              sampled.push({ x: data[midIndex].x, y: yVal });
+          }
+          return sampled;
+      }
 
       function filterNodes(query) {
         const q = query.toLowerCase().trim();
@@ -245,41 +219,18 @@
         }
       }
 
-      function showDropdown() {
-        renderDropdown();
-        dropdown.style.display = 'block';
-      }
-
-      function hideDropdown() {
-        setTimeout(() => {
-          if (document.activeElement !== searchInput) {
-            dropdown.style.display = 'none';
-          }
-        }, 200);
-      }
+      function showDropdown() { renderDropdown(); dropdown.style.display = 'block'; }
+      function hideDropdown() { setTimeout(() => { if (document.activeElement !== searchInput) dropdown.style.display = 'none'; }, 200); }
 
       searchInput.addEventListener('focus', showDropdown);
       searchInput.addEventListener('blur', hideDropdown);
-      searchInput.addEventListener('input', (e) => {
-        filterNodes(e.target.value);
-        showDropdown();
-      });
-
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('.relative.max-w-md')) {
-          dropdown.style.display = 'none';
-        }
-      });
+      searchInput.addEventListener('input', (e) => { filterNodes(e.target.value); showDropdown(); });
+      document.addEventListener('click', (e) => { if (!e.target.closest('.relative.max-w-md')) dropdown.style.display = 'none'; });
 
       function toggleNode(nodeId, nodeName, nodeIp) {
-        if (selectedNodes.has(nodeId)) {
-          selectedNodes.delete(nodeId);
-        } else {
-          selectedNodes.set(nodeId, { id: nodeId, name: nodeName, ip: nodeIp });
-        }
-        updateSelectedNodesDisplay();
-        renderDropdown();
-        loadComparison();
+        if (selectedNodes.has(nodeId)) selectedNodes.delete(nodeId);
+        else selectedNodes.set(nodeId, { id: nodeId, name: nodeName, ip: nodeIp });
+        updateSelectedNodesDisplay(); renderDropdown(); loadComparison();
       }
 
       function updateSelectedNodesDisplay() {
@@ -289,10 +240,7 @@
         selectedNodes.forEach((node, nodeId) => {
           const tag = document.createElement('div');
           tag.className = 'flex items-center gap-2 text-sm bg-green-500/20 border border-green-500/30 text-green-300 px-3 py-1 rounded-full';
-          tag.innerHTML = `
-            <span>${node.name}</span>
-            <button onclick="toggleNode(${nodeId}, '${node.name}', '${node.ip}')" class="hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">&times;</button>
-          `;
+          tag.innerHTML = `<span>${node.name}</span><button onclick="toggleNode(${nodeId}, '${node.name}', '${node.ip}')" class="hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">&times;</button>`;
           container.appendChild(tag);
         });
         const count = selectedNodes.size;
@@ -300,31 +248,30 @@
       }
 
       function clearSelection() {
-        selectedNodes.clear();
-        updateSelectedNodesDisplay();
-        renderDropdown();
-        loadComparison();
-        searchInput.value = '';
-        filterNodes('');
-      }
-
-      function createGradient(ctx, color) {
-        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, color + '20');
-        gradient.addColorStop(1, color + '00');
-        return gradient;
+        selectedNodes.clear(); updateSelectedNodesDisplay(); renderDropdown(); loadComparison(); searchInput.value = ''; filterNodes('');
       }
 
       function getTimeWindow(range) {
         const now = Date.now();
+        let ms = 60 * 60 * 1000;
         switch (range) {
-          case "1 HOUR": return { min: now - 60 * 60 * 1000, max: now };
-          case "1 DAY": return { min: now - 24 * 60 * 60 * 1000, max: now };
-          case "7 DAYS": return { min: now - 7 * 24 * 60 * 60 * 1000, max: now };
-          case "1 MONTH": return { min: now - 30 * 24 * 60 * 60 * 1000, max: now };
-          case "3 MONTHS": return { min: now - 90 * 24 * 60 * 60 * 1000, max: now };
-          default: return { min: null, max: null };
+          case "1 HOUR": ms = 60 * 60 * 1000; break;
+          case "1 DAY": ms = 24 * 60 * 60 * 1000; break;
+          case "7 DAYS": ms = 7 * 24 * 60 * 60 * 1000; break;
+          case "1 MONTH": ms = 30 * 24 * 60 * 60 * 1000; break;
+          case "3 MONTHS": ms = 90 * 24 * 60 * 60 * 1000; break;
         }
+        return { min: now - ms, max: now };
+      }
+
+      function resetAllZooms() {
+        const { min, max } = getTimeWindow(document.getElementById('timeRange').value);
+        charts.forEach(chart => {
+            if (chart.resetZoom) chart.resetZoom();
+            chart.options.scales.x.min = min;
+            chart.options.scales.x.max = max;
+            chart.update();
+        });
       }
 
       function createLegend(containerId, datasets) {
@@ -332,114 +279,145 @@
         container.innerHTML = '';
         datasets.forEach((dataset) => {
           const legendItem = document.createElement('div');
-          legendItem.className = 'flex items-center gap-2 mb-1';
-          legendItem.innerHTML = `
-            <div class="w-4 h-1 rounded-full" style="background-color: ${dataset.borderColor}"></div>
-            <span class="text-slate-300 text-xs">${dataset.label}</span>
-          `;
+          legendItem.className = 'flex items-center gap-2 px-2 py-1 bg-slate-900/40 rounded border border-white/5';
+          legendItem.innerHTML = `<div class="w-3 h-3 rounded-full" style="background-color: ${dataset.borderColor}"></div><span class="text-slate-300 text-xs">${dataset.label}</span>`;
           container.appendChild(legendItem);
         });
       }
 
       async function loadComparison() {
         const range = document.getElementById('timeRange').value;
+        currentRange = range;
         const { min, max } = getTimeWindow(range);
         
-        charts.forEach(chart => chart.destroy());
-        charts = [];
-        
-        let nodeDatasets = [];
-        
-        if (selectedNodes.size > 0) {
-          const nodeDataPromises = Array.from(selectedNodes.values()).map(async (node, index) => {
-            const res = await fetch(`/api/nodes/${node.id}/stats?range=${encodeURIComponent(range)}`);
-            const data = await res.json();
-            const color = colors[index % colors.length];
-            return {
-              node, color,
-              latencyData: data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.latency })),
-              lossData: data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.packet_loss ?? 0 })),
-              jitterData: data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.jitter })),
-            };
-          });
-          nodeDatasets = await Promise.all(nodeDataPromises);
-        }
-        
-        const baseOptions = {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              enabled: true,
-              backgroundColor: "rgba(15, 23, 42, 0.8)",
-              borderColor: "rgba(255, 255, 255, 0.1)",
-              borderWidth: 1,
-              titleFont: { weight: "bold" },
-              padding: 10,
-            },
-            zoom: {
-              zoom: {
-                drag: { enabled: true, backgroundColor: "rgba(96, 165, 250, 0.2)", borderColor: "#60a5fa" },
-                mode: "x",
-              },
-            },
-          },
-          scales: {
-            x: {
-              type: "time", min, max,
-              time: { tooltipFormat: "MMM d, HH:mm:ss", displayFormats: { minute: "HH:mm", hour: "MMM d HH:mm", day: "MMM d", month: "MMM yyyy" } },
-              ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" },
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { color: "#94a3b8", precision: 2 }, grid: { color: "rgba(255,255,255,0.1)" },
-            },
-          },
-        };
+        // Indicate Loading
+        const rangeSelect = document.getElementById('timeRange');
+        const prevText = rangeSelect.options[rangeSelect.selectedIndex].text;
+        rangeSelect.options[rangeSelect.selectedIndex].text = "Loading...";
+        rangeSelect.disabled = true;
 
-        const chartConfigs = [
-            { id: 'latencyChart', legendId: 'latencyLegend', dataKey: 'latencyData' },
-            { id: 'lossChart', legendId: 'lossLegend', dataKey: 'lossData' },
-            { id: 'jitterChart', legendId: 'jitterLegend', dataKey: 'jitterData' }
-        ];
-
-        chartConfigs.forEach(config => {
-            // FIX: Create a deep copy of baseOptions for each chart to prevent reference sharing
-            const chartOptions = JSON.parse(JSON.stringify(baseOptions));
-
-            // Apply specific modifications if needed
-            if (config.id === 'lossChart') {
-                chartOptions.scales.y.min = 0;
-                chartOptions.scales.y.max = 100;
-            }
-
-            const datasets = nodeDatasets.map(d => ({
-                label: `${d.node.name}`,
-                data: d[config.dataKey],
-                borderColor: d.color,
-                backgroundColor: createGradient(document.getElementById(config.id).getContext("2d"), d.color),
-                fill: false, tension: 0.4, pointRadius: 0, spanGaps: false, borderWidth: 2,
-            }));
+        try {
+            charts.forEach(chart => chart.destroy());
+            charts = [];
             
-            const ctx = document.getElementById(config.id).getContext("2d");
-            charts.push(new Chart(ctx, { type: "line", data: { datasets }, options: chartOptions }));
-            createLegend(config.legendId, datasets);
-        });
+            let nodeDatasets = [];
+            
+            if (selectedNodes.size > 0) {
+              const nodeDataPromises = Array.from(selectedNodes.values()).map(async (node, index) => {
+                const res = await fetch(`/api/nodes/${node.id}/stats?range=${encodeURIComponent(range)}`);
+                const data = await res.json();
+                const color = colors[index % colors.length];
+
+                let latencyData = data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.latency }));
+                let lossData = data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.packet_loss ?? 0 }));
+                let jitterData = data.map(d => ({ x: new Date(d.timestamp).getTime(), y: d.jitter }));
+
+                // Downsample if range > 1 HOUR
+                if (range !== "1 HOUR") {
+                    latencyData = downsampleData(latencyData);
+                    lossData = downsampleData(lossData);
+                    jitterData = downsampleData(jitterData);
+                }
+
+                return { node, color, latencyData, lossData, jitterData };
+              });
+              nodeDatasets = await Promise.all(nodeDataPromises);
+            }
+            
+            const isLargeData = range !== "1 HOUR";
+
+            const baseOptions = {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: isLargeData ? false : { duration: 500 },
+              normalized: true,
+              parsing: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  enabled: true,
+                  backgroundColor: "rgba(15, 23, 42, 0.9)",
+                  borderColor: "rgba(255, 255, 255, 0.1)",
+                  borderWidth: 1,
+                  displayColors: true,
+                  callbacks: {
+                     label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.y?.toFixed(2) ?? 'N/A'}`
+                  }
+                },
+                zoom: {
+                  pan: { enabled: true, mode: 'x', onPan: ({chart}) => syncScales(chart) },
+                  zoom: {
+                    drag: { enabled: true, backgroundColor: "rgba(96, 165, 250, 0.2)", borderColor: "#60a5fa" },
+                    mode: "x",
+                    onZoom: ({chart}) => syncScales(chart)
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  type: "time", min, max,
+                  time: { tooltipFormat: "MMM d, HH:mm:ss", displayFormats: { minute: "HH:mm", hour: "d HH:mm", day: "MMM d", month: "MMM yyyy" } },
+                  ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" },
+                },
+                y: {
+                  beginAtZero: true,
+                  ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.1)" },
+                },
+              },
+            };
+
+            const chartConfigs = [
+                { id: 'latencyChart', legendId: 'latencyLegend', dataKey: 'latencyData' },
+                { id: 'lossChart', legendId: 'lossLegend', dataKey: 'lossData' },
+                { id: 'jitterChart', legendId: 'jitterLegend', dataKey: 'jitterData' }
+            ];
+
+            chartConfigs.forEach(config => {
+                const chartOptions = JSON.parse(JSON.stringify(baseOptions));
+                // Re-bind zoom events
+                chartOptions.plugins.zoom.pan.onPan = ({chart}) => syncScales(chart);
+                chartOptions.plugins.zoom.zoom.onZoom = ({chart}) => syncScales(chart);
+
+                if (config.id === 'lossChart') {
+                    chartOptions.scales.y.min = 0;
+                    chartOptions.scales.y.max = 100;
+                }
+
+                const datasets = nodeDatasets.map(d => ({
+                    label: d.node.name,
+                    data: d[config.dataKey],
+                    borderColor: d.color,
+                    backgroundColor: d.color, // For tooltip color
+                    fill: false, 
+                    tension: 0.4, // Smooth lines
+                    pointRadius: isLargeData ? 0 : 2, 
+                    pointHoverRadius: 4,
+                    spanGaps: true, 
+                    borderWidth: 2,
+                }));
+                
+                const ctx = document.getElementById(config.id).getContext("2d");
+                charts.push(new Chart(ctx, { type: "line", data: { datasets }, options: chartOptions }));
+                createLegend(config.legendId, datasets);
+            });
+        } catch(e) { console.error(e); }
+        finally {
+             rangeSelect.options[rangeSelect.selectedIndex].text = prevText;
+             rangeSelect.disabled = false;
+        }
       }
 
       loadComparison();
 
+      // Right-click reset
       document.addEventListener("contextmenu", (e) => {
-        // Find which chart was clicked
-        const clickedChart = charts.find((c) => c.canvas.contains(e.target));
-        if (clickedChart) {
+        if (charts.some(c => c.canvas === e.target)) {
           e.preventDefault();
-          // Reset only the clicked chart
-          clickedChart.resetZoom();
+          resetAllZooms();
         }
       });
+      document.getElementById('resetZoomBtn').addEventListener('click', resetAllZooms);
 
       document.getElementById("timeRange").addEventListener("change", loadComparison);
       
@@ -447,10 +425,10 @@
         liveUpdatesPaused = !liveUpdatesPaused;
         const btn = document.getElementById("pauseBtn");
         if (liveUpdatesPaused) {
-          btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-resume" /></svg> Resume`;
+          btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-resume" /></svg> Resume Graph`;
           btn.classList.add("text-green-400");
         } else {
-          btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-pause" /></svg> Pause`;
+          btn.innerHTML = `<svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-pause" /></svg> Pause Graph`;
           btn.classList.remove("text-green-400");
           loadComparison();
         }
@@ -458,9 +436,8 @@
 
       const socket = io();
       socket.on("pingUpdate", (data) => {
-        if (!liveUpdatesPaused && selectedNodes.has(data.nodeId)) {
-          const range = document.getElementById('timeRange').value;
-          const { min, max } = getTimeWindow(range);
+        if (!liveUpdatesPaused && selectedNodes.has(data.nodeId) && currentRange === "1 HOUR") {
+          const { min, max } = getTimeWindow(currentRange);
           const ts = new Date(data.timestamp).getTime();
           
           const nodeIndex = Array.from(selectedNodes.keys()).indexOf(data.nodeId);
@@ -468,7 +445,7 @@
           if (nodeIndex !== -1 && charts.length === 3) {
             const values = [
               data.latency !== null ? data.latency : null,
-              data.packetLoss ?? 0,
+              data.packetLoss1h ?? 0, // Using cached loss for real-time consistency
               data.jitter !== null ? data.jitter : null
             ];
             
@@ -478,7 +455,8 @@
               
               const dataset = chart.data.datasets[nodeIndex].data;
               dataset.push({ x: ts, y: val });
-              chart.data.datasets[nodeIndex].data = dataset.filter((p) => p.x >= min);
+              // Remove old
+              while(dataset.length > 0 && dataset[0].x < min) dataset.shift();
               
               chart.options.scales.x.min = min;
               chart.options.scales.x.max = max;
