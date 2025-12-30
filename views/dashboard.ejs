@@ -191,7 +191,7 @@
         </div>
         <div class="flex items-center gap-3">
           <a href="https://github.com/beanman109/beanping" target="_blank" class="btn btn-sm bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">View on GitHub</a>
-          <button onclick="document.getElementById('updateBanner').classList.add('hidden')" class="text-slate-400 hover:text-white transition">&times;</button>
+          <button onclick="dismissUpdate()" class="text-slate-400 hover:text-white transition">&times;</button>
         </div>
       </div>
 
@@ -525,7 +525,7 @@
 
       <!-- Footer with Version -->
       <footer class="mt-8 text-center text-slate-500 text-sm pb-4">
-        v1.1.1
+        v1.1.2
       </footer>
 
     </div>
@@ -620,20 +620,23 @@
       document.addEventListener('DOMContentLoaded', checkForUpdates);
 
       async function checkForUpdates() {
+        // Check for 12-hour timeout in localStorage
+        const dismissedTime = localStorage.getItem('beanping_update_dismissed');
+        if (dismissedTime) {
+          const hoursSince = (Date.now() - parseInt(dismissedTime, 10)) / (1000 * 60 * 60);
+          if (hoursSince < 12) {
+            return; // Exit if dismissed recently
+          }
+        }
+
         try {
-          // Fetch raw EJS file from GitHub
           const response = await fetch(REPO_FILE_URL);
-          if (!response.ok) return; // Silent fail if offline or git down
+          if (!response.ok) return; 
           
           const text = await response.text();
-          
-          // Regex to find "vX.X.X" at the very end of the file or near footer
-          // We look for the pattern: v(\d+\.\d+\.\d+) inside the footer or script area
           const versionMatch = text.match(/v(\d+\.\d+\.\d+)/g);
           
           if (versionMatch && versionMatch.length > 0) {
-            // Usually the last match is the one in the footer or the const definition we just added
-            // Let's grab the version string (e.g., "1.1.0")
             const remoteVersionString = versionMatch[versionMatch.length - 1].replace('v', '');
             
             if (isNewerVersion(LOCAL_VERSION, remoteVersionString)) {
@@ -645,6 +648,11 @@
         } catch (e) {
           console.log('Update check failed:', e);
         }
+      }
+
+      function dismissUpdate() {
+        document.getElementById('updateBanner').classList.add('hidden');
+        localStorage.setItem('beanping_update_dismissed', Date.now().toString());
       }
 
       function isNewerVersion(local, remote) {
