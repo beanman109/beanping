@@ -196,13 +196,18 @@
       </div>
 
       <!-- Header -->
-      <header class="text-center">
-        <h1
-          class="text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-        >
-          BeanPing
-        </h1>
-        <p class="text-slate-400 mt-2">Remote latency monitoring solution</p>
+      <header class="text-center flex flex-col items-center justify-center">
+        <div class="flex items-center gap-4">
+            <!-- Logo Image: Will hide if not found -->
+            <img src="/logo.png" alt="Logo" class="w-14 h-14 object-contain drop-shadow-lg" onerror="this.style.display='none'">
+            
+            <h1
+              class="text-6xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent pb-2"
+            >
+              BeanPing
+            </h1>
+        </div>
+        <p class="text-slate-400 mt-1">Remote latency monitoring solution</p>
       </header>
 
       <!-- Problem Nodes Section -->
@@ -381,7 +386,7 @@
             </button>
             <div
               id="mainDropdown"
-              class="dropdown glass-morphism rounded-xl shadow-2xl w-48 overflow-hidden"
+              class="dropdown glass-morphism rounded-xl shadow-2xl w-56 overflow-hidden"
             >
               <button
                 id="openSettingsBtn"
@@ -390,16 +395,10 @@
                 Settings & Webhooks
               </button>
               <button
-                id="backupBtn"
+                id="openBackupModalBtn"
                 class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10"
               >
-                Backup Database
-              </button>
-              <button
-                id="restoreBtn"
-                class="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/10"
-              >
-                Restore Database
+                Backups & Restoration
               </button>
               <button
                 id="vtraceBtn"
@@ -525,7 +524,7 @@
 
       <!-- Footer with Version -->
       <footer class="mt-8 text-center text-slate-500 text-sm pb-4">
-        v1.1.2
+        v1.2.0
       </footer>
 
     </div>
@@ -534,6 +533,85 @@
     <div id="globalTestModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4"></div>
     <div id="editModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4"></div>
     
+    <!-- Backup & Restoration Modal -->
+    <div id="backupModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+      <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col animate-fade-in">
+        <header class="p-4 border-b border-white/10 flex justify-between items-center">
+          <h2 class="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Backups & Restoration</h2>
+          <button onclick="closeBackupModal()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button>
+        </header>
+        
+        <div class="flex border-b border-white/10 px-4">
+          <button class="tab-btn active" onclick="switchBackupTab('manual')">Manual</button>
+          <button class="tab-btn" onclick="switchBackupTab('automation')">Automation</button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-grow">
+          <!-- Manual Tab -->
+          <div id="backup-tab-manual" class="space-y-6">
+            <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+              <h3 class="font-medium text-slate-200 mb-2">Create Backup</h3>
+              <p class="text-sm text-slate-400 mb-4">Download a snapshot of the current database.</p>
+              <button id="downloadBackupBtn" class="btn glass-morphism hover:bg-blue-500/30 w-full justify-center">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                Download Database
+              </button>
+            </div>
+            
+            <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+              <h3 class="font-medium text-slate-200 mb-2">Restore Database</h3>
+              <p class="text-sm text-slate-400 mb-4">Upload a .db file to replace the current database. <span class="text-red-400">Warning: This will overwrite existing data.</span></p>
+              <button id="uploadRestoreBtn" class="btn glass-morphism hover:bg-red-500/30 w-full justify-center text-red-200">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                Upload & Restore
+              </button>
+            </div>
+          </div>
+
+          <!-- Automation Tab -->
+          <div id="backup-tab-automation" class="hidden space-y-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-medium text-slate-200">Enable Auto-Backup</h3>
+                <p class="text-xs text-slate-400">Automatically backup database locally</p>
+              </div>
+              <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                <input type="checkbox" name="toggle" id="autoBackupToggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-700 checked:right-0 checked:border-green-400"/>
+                <label for="autoBackupToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer"></label>
+              </div>
+            </div>
+
+            <div id="scheduleSettings" class="space-y-4 opacity-50 pointer-events-none transition-opacity">
+              <div>
+                <label class="block text-slate-300 mb-2 text-sm">Schedule Frequency</label>
+                <select id="backupFrequency" class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                  <option value="0 0 * * *">Daily (at midnight)</option>
+                  <option value="0 0 * * 0">Weekly (Sundays at midnight)</option>
+                  <option value="custom">Custom Cron Expression</option>
+                </select>
+              </div>
+
+              <div id="customCronDiv" class="hidden">
+                <label class="block text-slate-300 mb-2 text-sm">Cron Expression</label>
+                <input type="text" id="backupCron" placeholder="e.g. 0 12 * * *" class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                <p class="text-xs text-slate-500 mt-1">Standard 5-part cron syntax.</p>
+              </div>
+
+              <div>
+                <label class="block text-slate-300 mb-2 text-sm">Retention (Days)</label>
+                <input type="number" id="backupRetention" min="1" value="7" class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                <p class="text-xs text-slate-500 mt-1">Delete local auto-backups older than this.</p>
+              </div>
+            </div>
+
+            <div class="pt-4 flex justify-end">
+              <button onclick="saveBackupSettings()" class="btn glass-morphism hover:bg-blue-500/30">Save Schedule</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
       <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-fade-in">
@@ -582,15 +660,26 @@
             </div>
             
             <div id="addWebhookForm" class="hidden bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-3">
+               <input type="hidden" id="editWebhookId">
                <input type="text" id="newWebhookName" placeholder="Webhook Name (e.g. Discord)" class="w-full p-2 rounded bg-slate-900 border border-slate-600 text-sm">
                <input type="text" id="newWebhookUrl" placeholder="Webhook URL" class="w-full p-2 rounded bg-slate-900 border border-slate-600 text-sm">
-               <div class="flex items-center gap-4 text-sm">
-                 <label class="flex items-center gap-2"><input type="checkbox" id="newWebhookOnline" checked> Notify Online</label>
-                 <label class="flex items-center gap-2"><input type="checkbox" id="newWebhookOffline" checked> Notify Offline</label>
+               
+               <div class="space-y-2 mt-2">
+                 <div class="flex items-center gap-4 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="newWebhookOnline" checked> Notify Online</label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="newWebhookOffline" checked> Notify Offline</label>
+                 </div>
+                 <div class="flex items-center gap-2 text-sm pt-1 border-t border-slate-700/50">
+                    <label class="flex items-center gap-2 cursor-pointer text-blue-200">
+                      <input type="checkbox" id="newWebhookGlobal" checked> 
+                      Enable Globally (Apply to all monitors)
+                    </label>
+                 </div>
                </div>
+
                <div class="flex gap-2 justify-end">
-                 <button onclick="document.getElementById('addWebhookForm').classList.add('hidden')" class="text-xs text-slate-400 hover:text-white">Cancel</button>
-                 <button onclick="addWebhook()" class="btn btn-sm glass-morphism hover:bg-green-500/30">Save</button>
+                 <button onclick="resetWebhookForm()" class="text-xs text-slate-400 hover:text-white">Cancel</button>
+                 <button onclick="addWebhook()" class="btn btn-sm glass-morphism hover:bg-green-500/30" id="saveWebhookBtn">Save</button>
                </div>
             </div>
 
@@ -613,7 +702,7 @@
       let nodeStats = new Map();
 
       // CURRENT LOCAL VERSION
-      const LOCAL_VERSION = '1.1.0';
+      const LOCAL_VERSION = '1.2.0';
       const REPO_FILE_URL = 'https://raw.githubusercontent.com/beanman109/beanping/refs/heads/main/views/dashboard.ejs';
 
       // --- Update Checker ---
@@ -706,10 +795,36 @@
         mainDropdown.style.display = 'none';
       });
 
-      // --- Backup / Restore ---
-      document.getElementById('backupBtn').addEventListener('click', async () => {
+      // --- Backup Logic ---
+
+      document.getElementById('openBackupModalBtn').addEventListener('click', () => {
+        openBackupModal();
+        mainDropdown.style.display = 'none';
+      });
+
+      function openBackupModal() {
+        document.getElementById('backupModal').classList.remove('hidden');
+        document.getElementById('backupModal').classList.add('flex');
+        loadBackupSettings();
+      }
+
+      function closeBackupModal() {
+        document.getElementById('backupModal').classList.add('hidden');
+        document.getElementById('backupModal').classList.remove('flex');
+      }
+
+      function switchBackupTab(tabName) {
+        document.querySelectorAll('#backupModal .tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('backup-tab-manual').classList.add('hidden');
+        document.getElementById('backup-tab-automation').classList.add('hidden');
+        document.getElementById(`backup-tab-${tabName}`).classList.remove('hidden');
+      }
+
+      // Manual Backup/Restore
+      document.getElementById('downloadBackupBtn').addEventListener('click', async () => {
         try {
-          const response = await fetch('/api/backup');
+          const response = await fetch('/api/backup/download');
           if (response.ok) {
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -723,12 +838,10 @@
             document.body.removeChild(a);
           } else { alert('Backup failed'); }
         } catch (error) { alert('Backup error: ' + error.message); }
-        mainDropdown.style.display = 'none';
       });
 
-      document.getElementById('restoreBtn').addEventListener('click', () => {
+      document.getElementById('uploadRestoreBtn').addEventListener('click', () => {
         document.getElementById('restoreFileInput').click();
-        mainDropdown.style.display = 'none';
       });
 
       document.getElementById('restoreFileInput').addEventListener('change', async (e) => {
@@ -751,6 +864,94 @@
         e.target.value = '';
       });
 
+      // Automation Settings
+      const autoBackupToggle = document.getElementById('autoBackupToggle');
+      const scheduleSettingsDiv = document.getElementById('scheduleSettings');
+      const backupFrequency = document.getElementById('backupFrequency');
+      const customCronDiv = document.getElementById('customCronDiv');
+      const backupCronInput = document.getElementById('backupCron');
+
+      autoBackupToggle.addEventListener('change', (e) => {
+        if(e.target.checked) {
+          scheduleSettingsDiv.classList.remove('opacity-50', 'pointer-events-none');
+        } else {
+          scheduleSettingsDiv.classList.add('opacity-50', 'pointer-events-none');
+        }
+      });
+
+      backupFrequency.addEventListener('change', (e) => {
+        if(e.target.value === 'custom') {
+          customCronDiv.classList.remove('hidden');
+        } else {
+          customCronDiv.classList.add('hidden');
+        }
+      });
+
+      async function loadBackupSettings() {
+        try {
+          const res = await fetch('/api/settings/backup');
+          const data = await res.json();
+          
+          if(data.schedule && data.schedule !== 'disabled') {
+            autoBackupToggle.checked = true;
+            scheduleSettingsDiv.classList.remove('opacity-50', 'pointer-events-none');
+            
+            // Check if matches preset
+            if (data.schedule === '0 0 * * *' || data.schedule === '0 0 * * 0') {
+               backupFrequency.value = data.schedule;
+               customCronDiv.classList.add('hidden');
+               backupCronInput.value = '';
+            } else {
+               backupFrequency.value = 'custom';
+               customCronDiv.classList.remove('hidden');
+               backupCronInput.value = data.schedule;
+            }
+          } else {
+            autoBackupToggle.checked = false;
+            scheduleSettingsDiv.classList.add('opacity-50', 'pointer-events-none');
+          }
+
+          document.getElementById('backupRetention').value = data.retention || 7;
+        } catch (e) {
+          console.error("Failed to load backup settings", e);
+        }
+      }
+
+      async function saveBackupSettings() {
+        let schedule = "disabled";
+        
+        if (autoBackupToggle.checked) {
+          if (backupFrequency.value === 'custom') {
+            schedule = backupCronInput.value.trim();
+            if(!schedule) { alert("Please enter a Cron expression"); return; }
+          } else {
+            schedule = backupFrequency.value;
+          }
+        }
+
+        const retention = document.getElementById('backupRetention').value;
+
+        const payload = { schedule, retention };
+        
+        try {
+          const res = await fetch('/api/settings/backup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+          });
+          const result = await res.json();
+          if(res.ok) {
+            alert('Backup schedule updated!');
+            closeBackupModal();
+          } else {
+            alert('Error: ' + result.error);
+          }
+        } catch(e) {
+          alert('Save failed: ' + e.message);
+        }
+      }
+
+      // --- Visual Traceroute Link ---
       document.getElementById('vtraceBtn').addEventListener('click', () => {
         window.location.href = '/vtraceroute';
         mainDropdown.style.display = 'none';
@@ -767,6 +968,7 @@
       function closeSettingsModal() {
         document.getElementById('settingsModal').classList.add('hidden');
         document.getElementById('settingsModal').classList.remove('flex');
+        resetWebhookForm();
       }
 
       function switchSettingsTab(tabName) {
@@ -797,32 +999,46 @@
       }
 
       // --- Webhook Logic (Global) ---
+      let cachedWebhooks = [];
+
       async function loadWebhooks() {
         const res = await fetch('/api/webhooks');
-        const webhooks = await res.json();
+        cachedWebhooks = await res.json();
         const container = document.getElementById('webhookList');
         container.innerHTML = '';
         
-        if (webhooks.length === 0) {
+        if (cachedWebhooks.length === 0) {
           container.innerHTML = '<p class="text-sm text-slate-500 italic">No webhooks configured.</p>';
           return;
         }
 
-        webhooks.forEach(wh => {
+        cachedWebhooks.forEach(wh => {
+          let typeLabel = wh.global_broadcast ? 
+              '<span class="text-xs border border-slate-600 px-1 rounded text-slate-400">Global</span>' : 
+              '<span class="text-xs border border-blue-500/50 text-blue-300 px-1 rounded">Opt-in Only</span>';
+
           const div = document.createElement('div');
-          div.className = 'bg-slate-900/50 border border-slate-700 p-3 rounded-lg flex flex-col gap-2';
+          div.className = `bg-slate-900/50 border ${wh.enabled ? 'border-slate-700' : 'border-yellow-900/50'} p-3 rounded-lg flex flex-col gap-2`;
           div.innerHTML = `
             <div class="flex justify-between items-start">
-              <div>
-                <h4 class="font-medium text-slate-200">${wh.name}</h4>
+              <div class="${wh.enabled ? '' : 'opacity-50'}">
+                <div class="flex items-center gap-2 mb-1">
+                    <h4 class="font-medium text-slate-200">${wh.name}</h4>
+                    ${!wh.enabled ? '<span class="text-xs text-yellow-500 font-bold">(Paused)</span>' : ''}
+                    ${typeLabel}
+                </div>
                 <p class="text-xs text-slate-500 truncate max-w-[250px]">${wh.url}</p>
               </div>
               <div class="flex gap-2">
+                 <button onclick="toggleWebhook(${wh.id}, ${wh.enabled})" class="text-xs px-2 py-1 rounded transition ${wh.enabled ? 'bg-yellow-900/30 hover:bg-yellow-900/50 text-yellow-200' : 'bg-green-900/30 hover:bg-green-900/50 text-green-200'}">
+                  ${wh.enabled ? 'Pause' : 'Resume'}
+                </button>
+                <button onclick="editWebhook(${wh.id})" class="text-xs bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 rounded transition">Edit</button>
                 <button onclick="testWebhook(${wh.id})" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition">Test</button>
                 <button onclick="deleteWebhook(${wh.id})" class="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded transition">Del</button>
               </div>
             </div>
-            <div class="flex gap-3 text-xs text-slate-400">
+            <div class="flex gap-3 text-xs text-slate-400 ${wh.enabled ? '' : 'opacity-50'}">
                <span class="${wh.notify_online ? 'text-green-400' : 'text-slate-600'}">Online: ${wh.notify_online ? 'Yes' : 'No'}</span>
                <span class="${wh.notify_offline ? 'text-red-400' : 'text-slate-600'}">Offline: ${wh.notify_offline ? 'Yes' : 'No'}</span>
             </div>
@@ -832,26 +1048,91 @@
       }
 
       function showAddWebhookForm() {
+        resetWebhookForm();
+        document.getElementById('addWebhookForm').classList.remove('hidden');
+      }
+
+      function resetWebhookForm() {
+        document.getElementById('editWebhookId').value = '';
+        document.getElementById('newWebhookName').value = '';
+        document.getElementById('newWebhookUrl').value = '';
+        document.getElementById('newWebhookOnline').checked = true;
+        document.getElementById('newWebhookOffline').checked = true;
+        document.getElementById('newWebhookGlobal').checked = true;
+        document.getElementById('saveWebhookBtn').textContent = 'Save';
+        document.getElementById('addWebhookForm').classList.add('hidden');
+      }
+
+      function editWebhook(id) {
+        const wh = cachedWebhooks.find(w => w.id === id);
+        if(!wh) return;
+
+        document.getElementById('editWebhookId').value = wh.id;
+        document.getElementById('newWebhookName').value = wh.name;
+        document.getElementById('newWebhookUrl').value = wh.url;
+        document.getElementById('newWebhookOnline').checked = wh.notify_online;
+        document.getElementById('newWebhookOffline').checked = wh.notify_offline;
+        document.getElementById('newWebhookGlobal').checked = wh.global_broadcast;
+        
+        document.getElementById('saveWebhookBtn').textContent = 'Update';
         document.getElementById('addWebhookForm').classList.remove('hidden');
       }
 
       async function addWebhook() {
+        const id = document.getElementById('editWebhookId').value;
         const name = document.getElementById('newWebhookName').value;
         const url = document.getElementById('newWebhookUrl').value;
         const online = document.getElementById('newWebhookOnline').checked;
         const offline = document.getElementById('newWebhookOffline').checked;
+        const globalBroadcast = document.getElementById('newWebhookGlobal').checked;
         
         if(!name || !url) return alert('Name and URL required');
         
-        await fetch('/api/webhooks', {
-          method: 'POST',
+        // Preserve "enabled" status if editing, default true if new
+        const enabledStatus = id ? cachedWebhooks.find(w => w.id == id).enabled : true;
+
+        const payload = { 
+            name, 
+            url, 
+            notify_online: online, 
+            notify_offline: offline,
+            global_broadcast: globalBroadcast,
+            enabled: enabledStatus
+        };
+
+        let method = 'POST';
+        let endpoint = '/api/webhooks';
+
+        if(id) {
+            method = 'PUT';
+            endpoint = `/api/webhooks/${id}`;
+        }
+        
+        await fetch(endpoint, {
+          method: method,
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ name, url, notify_online: online, notify_offline: offline })
+          body: JSON.stringify(payload)
         });
         
-        document.getElementById('newWebhookName').value = '';
-        document.getElementById('newWebhookUrl').value = '';
-        document.getElementById('addWebhookForm').classList.add('hidden');
+        resetWebhookForm();
+        loadWebhooks();
+      }
+
+      async function toggleWebhook(id, currentStatus) {
+        const wh = cachedWebhooks.find(w => w.id === id);
+        if(!wh) return;
+
+        // Only toggle the Master Switch (enabled), preserve other fields
+        const payload = {
+            enabled: !currentStatus
+        };
+
+        await fetch(`/api/webhooks/${id}`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+
         loadWebhooks();
       }
 
@@ -1071,10 +1352,26 @@
            webhookHtml = '<p class="text-sm text-slate-500">No webhooks defined globally. Add some in Global Settings first.</p>';
         } else {
            webhookHtml = webhooksData.map(wh => {
-             const isEnabled = wh.has_override ? wh.override_enabled : wh.enabled;
+             // Logic Fix: Calculate visual state based on inheritance
+             let isEnabled;
+             
+             if (wh.has_override) {
+                 // Explicit setting for this node exists
+                 isEnabled = wh.override_enabled;
+             } else {
+                 // No setting: Default to TRUE if Global, FALSE if Opt-in
+                 isEnabled = wh.global_broadcast ? wh.enabled : false;
+             }
+             
+             // Label clarify
+             let label = wh.name;
+             if (!wh.global_broadcast && !wh.has_override) {
+                 label += ' <span class="text-xs text-slate-500 italic">(Opt-in Only)</span>';
+             }
+
              return `
              <div class="flex items-center justify-between bg-slate-900/30 p-2 rounded mb-2 border border-slate-700/50">
-                <div class="text-sm text-slate-300">${wh.name}</div>
+                <div class="text-sm text-slate-300">${label}</div>
                 <div class="flex items-center gap-2">
                    <label class="text-xs text-slate-500 mr-2">Notify:</label>
                    <input type="checkbox" class="webhook-toggle" data-id="${wh.id}" ${isEnabled ? 'checked' : ''}>

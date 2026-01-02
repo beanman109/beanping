@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Node <%= node.name %></title>
+	<link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -49,6 +50,17 @@
         width: 100% !important;
         height: 280px !important;
       }
+      /* Tab Styles */
+      .tab-btn {
+        padding: 0.5rem 1rem;
+        border-bottom: 2px solid transparent;
+        color: #94a3b8;
+        transition: all 0.2s;
+      }
+      .tab-btn.active {
+        border-bottom-color: #60a5fa;
+        color: #60a5fa;
+      }
     </style>
   </head>
   <body
@@ -64,8 +76,8 @@
       <!-- Header -->
       <header class="flex flex-wrap justify-between items-center gap-4">
         <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-          Node: <%= node.name %>
-          <span class="block text-lg text-slate-400 font-normal mt-1">(<%= node.ip %>)</span>
+          Node: <span id="headerNodeName"><%= node.name %></span>
+          <span class="block text-lg text-slate-400 font-normal mt-1">(<span id="headerNodeIp"><%= node.ip %></span>)</span>
         </h1>
         <a href="/" class="glass-morphism px-5 py-2.5 rounded-xl hover:bg-white/10 transition-all duration-300 flex items-center gap-2 font-semibold">
           <svg class="w-5 h-5" fill="currentColor"><use xlink:href="/icons.svg#icon-back" /></svg>
@@ -85,6 +97,11 @@
         </select>
         <button id="pauseBtn" class="glass-morphism px-3 py-2 text-sm rounded-lg hover:bg-white/10 transition-all flex items-center gap-2">
           <svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-pause" /></svg> Pause Graph
+        </button>
+        <div class="h-6 w-px bg-white/10 mx-2"></div> <!-- Separator -->
+        <button onclick="editNode(<%= node.id %>, '<%= node.name %>', '<%= node.ip %>')" class="glass-morphism px-3 py-2 text-sm rounded-lg hover:bg-white/10 transition-all flex items-center gap-2 text-blue-300">
+           <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+           Edit Settings
         </button>
         <button id="mtrBtn" class="glass-morphism px-3 py-2 text-sm rounded-lg hover:bg-white/10 transition-all flex items-center gap-2">
           <svg class="w-4 h-4" fill="currentColor"><use xlink:href="/icons.svg#icon-mtr" /></svg> Run MTR
@@ -131,10 +148,15 @@
       </div>
     </div>
 
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4"></div>
+
     <script>
       let charts = [];
       let liveUpdatesPaused = false;
       let currentRange = "1 HOUR";
+
+      function sanitizeIp(ip) { return ip.trim().replace(/[^0-9a-fA-F\.:]/g, ""); }
 
       // --- Chart Synchronization Logic ---
       function syncScales(chart) {
@@ -396,6 +418,15 @@
         }
       });
 
+      socket.on("nodeUpdated", (updatedNode) => {
+        if (updatedNode.id == <%= node.id %>) {
+          // Update header details without page reload
+          document.getElementById('headerNodeName').textContent = updatedNode.name;
+          document.getElementById('headerNodeIp').textContent = updatedNode.ip;
+          document.title = "Node " + updatedNode.name;
+        }
+      });
+
       async function runTool(btnId, endpoint, title) {
         const btn = document.getElementById(btnId);
         const originalContent = btn.innerHTML;
@@ -418,6 +449,159 @@
         modal.innerHTML = `<div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"><header class="p-4 border-b border-white/10 flex justify-between items-center"><h2 class="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">${title}</h2><button onclick="this.closest('.fixed').remove()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button></header><div class="p-4 bg-slate-900/50 flex-grow overflow-auto"><pre class="whitespace-pre-wrap text-sm text-slate-300 break-words">${output}</pre></div><footer class="p-4 text-right border-t border-white/10"><button onclick="this.closest('.fixed').remove()" class="glass-morphism px-4 py-2 text-sm rounded-lg hover:bg-white/10 transition-all">Close</button></footer></div>`;
         modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
+      }
+
+      // --- Node Editing Functions ---
+
+      async function editNode(id, name, ip) {
+        // Fetch extended data
+        const [graceRes, webhookRes] = await Promise.all([
+           fetch(`/api/nodes/${id}/grace-periods`),
+           fetch(`/api/nodes/${id}/webhooks`)
+        ]);
+        const graceData = await graceRes.json();
+        const webhooksData = await webhookRes.json();
+        
+        // Prepare Override checkbox state
+        const isOverride = graceData.node.offline_grace_period !== null || graceData.node.online_grace_period !== null;
+        
+        // Prepare Webhook List HTML
+        let webhookHtml = '';
+        if (webhooksData.length === 0) {
+           webhookHtml = '<p class="text-sm text-slate-500">No webhooks defined globally. Add some in Global Settings first.</p>';
+        } else {
+           webhookHtml = webhooksData.map(wh => {
+             const isEnabled = wh.has_override ? wh.override_enabled : wh.enabled;
+             return `
+             <div class="flex items-center justify-between bg-slate-900/30 p-2 rounded mb-2 border border-slate-700/50">
+                <div class="text-sm text-slate-300">${wh.name}</div>
+                <div class="flex items-center gap-2">
+                   <label class="text-xs text-slate-500 mr-2">Notify:</label>
+                   <input type="checkbox" class="webhook-toggle" data-id="${wh.id}" ${isEnabled ? 'checked' : ''}>
+                </div>
+             </div>
+             `;
+           }).join('');
+        }
+
+        const modal = document.getElementById("editModal");
+        modal.innerHTML = `
+        <div class="glass-morphism rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in">
+          <header class="p-4 border-b border-white/10 flex justify-between items-center"><h2 class="text-xl font-semibold text-blue-300">Edit Node Settings</h2><button onclick="closeEditModal()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition">&times;</button></header>
+          
+          <div class="flex border-b border-white/10 px-4">
+             <button class="tab-btn active" onclick="switchEditTab('basic')">General</button>
+             <button class="tab-btn" onclick="switchEditTab('alerts')">Alerts</button>
+             <button class="tab-btn" onclick="switchEditTab('webhooks')">Webhooks</button>
+          </div>
+
+          <form id="editNodeForm" class="p-6 flex-grow overflow-y-auto">
+            <input type="hidden" id="editId" value="${id}">
+            
+            <!-- Tab: Basic -->
+            <div id="edit-tab-basic" class="space-y-4">
+               <div>
+                 <label class="block text-slate-300 mb-2">Name</label>
+                 <input type="text" id="editName" value="${name}" required class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+               </div>
+               <div>
+                 <label class="block text-slate-300 mb-2">IP Address</label>
+                 <input type="text" id="editIp" value="${ip}" required class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+               </div>
+            </div>
+
+            <!-- Tab: Alerts -->
+            <div id="edit-tab-alerts" class="space-y-4 hidden">
+               <div class="flex items-center gap-2 mb-4">
+                  <input type="checkbox" id="overrideGrace" ${isOverride ? 'checked' : ''} onchange="toggleGraceInputs(this.checked)">
+                  <label for="overrideGrace" class="text-slate-300 text-sm">Override Global Grace Periods</label>
+               </div>
+               <div id="graceInputs" class="${isOverride ? '' : 'opacity-50 pointer-events-none'} space-y-4 transition-opacity">
+                  <div>
+                    <label class="block text-slate-300 mb-1 text-sm">Offline Grace (pings)</label>
+                    <input type="number" id="editOffline" value="${graceData.effective.offline}" class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600">
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1 text-sm">Online Grace (pings)</label>
+                    <input type="number" id="editOnline" value="${graceData.effective.online}" class="w-full p-2 rounded-lg bg-slate-900/50 border border-slate-600">
+                  </div>
+               </div>
+            </div>
+
+            <!-- Tab: Webhooks -->
+            <div id="edit-tab-webhooks" class="space-y-4 hidden">
+               <p class="text-xs text-slate-400 mb-2">Toggle specific webhooks for this node.</p>
+               ${webhookHtml}
+            </div>
+
+            <div class="flex justify-end gap-2 pt-6 border-t border-white/10 mt-4">
+              <button type="button" onclick="closeEditModal()" class="btn glass-morphism hover:bg-white/10">Cancel</button>
+              <button type="submit" class="btn glass-morphism hover:bg-blue-500/30">Save Changes</button>
+            </div>
+          </form>
+        </div>`;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById("editNodeForm").addEventListener("submit", handleEditNodeSubmit);
+      }
+      
+      window.switchEditTab = function(tab) {
+         document.querySelectorAll('#editModal .tab-btn').forEach(btn => btn.classList.remove('active'));
+         event.target.classList.add('active');
+         ['basic', 'alerts', 'webhooks'].forEach(t => {
+            const el = document.getElementById(`edit-tab-${t}`);
+            if(t === tab) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+         });
+      };
+
+      window.toggleGraceInputs = function(enabled) {
+         const div = document.getElementById('graceInputs');
+         if(enabled) {
+            div.classList.remove('opacity-50', 'pointer-events-none');
+         } else {
+            div.classList.add('opacity-50', 'pointer-events-none');
+         }
+      };
+
+      function closeEditModal() { document.getElementById("editModal").classList.add("hidden"); }
+
+      async function handleEditNodeSubmit(e) {
+        e.preventDefault();
+        const id = document.getElementById("editId").value;
+        const name = document.getElementById("editName").value.trim();
+        let ip = sanitizeIp(document.getElementById("editIp").value);
+        
+        // 1. Save Basic Info
+        await fetch(`/api/nodes/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ip }) });
+        
+        // 2. Save Grace Periods
+        const override = document.getElementById('overrideGrace').checked;
+        const gracePayload = {
+           offline_grace_period: override ? document.getElementById('editOffline').value : null,
+           online_grace_period: override ? document.getElementById('editOnline').value : null,
+        };
+        await fetch(`/api/nodes/${id}/grace-periods`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(gracePayload) });
+
+        // 3. Save Webhook Toggles
+        const toggles = document.querySelectorAll('.webhook-toggle');
+        for (const toggle of toggles) {
+           const webhookId = toggle.dataset.id;
+           const enabled = toggle.checked;
+           await fetch(`/api/nodes/${id}/webhooks/${webhookId}`, {
+              method: 'POST',
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ enabled: enabled, notify_online: true, notify_offline: true })
+           });
+        }
+
+        closeEditModal();
+        alert("Node updated successfully");
+        
+        // Update local page reference so we don't need to reload
+        // Note: The socket listener also handles this, but we update edit button params here for consistency
+        const editBtn = document.querySelector("button[onclick^='editNode']");
+        editBtn.setAttribute("onclick", `editNode(${id}, '${name}', '${ip}')`);
       }
     </script>
   </body>

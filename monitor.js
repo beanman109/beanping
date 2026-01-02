@@ -1,4 +1,4 @@
-// monitor.js (Optimized for Large Datasets & Discord Fixed)
+// monitor.js (Optimized for Large Datasets & Discord Fixed & Auto Backups & Opt-in Webhooks)
 const express = require("express");
 const bodyParser = require("body-parser");
 const Database = require("better-sqlite3");
@@ -18,18 +18,20 @@ const io = new Server(server);
 let db = new Database("monitor.db");
 
 // ============================================
-// IN-MEMORY CACHE
+// IN-MEMORY CACHE & GLOBALS
 // ============================================
-// Structure: { nodeId: { latency: 20, packetLoss1h: 0.1, jitter: 2.5, avgJitter1h: 2.0 } }
-// This prevents N+1 DB queries on dashboard load
 let nodeStatsCache = {};
+let backupTask = null; 
 
 // Setup multer for file uploads
 const upload = multer({ dest: "temp-uploads/" });
 
-// Create temp-uploads directory if it doesn't exist
+// Create temp-uploads and backups directory if not exists
 if (!fs.existsSync("temp-uploads")) {
   fs.mkdirSync("temp-uploads");
+}
+if (!fs.existsSync("backups")) {
+  fs.mkdirSync("backups");
 }
 
 // Setup DB
@@ -71,6 +73,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   enabled INTEGER DEFAULT 1,
+  global_broadcast INTEGER DEFAULT 1, -- New column: 1 = All Nodes, 0 = Opt-in Only
   notify_online INTEGER DEFAULT 1,
   notify_offline INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (datetime('now'))
@@ -89,15 +92,20 @@ CREATE TABLE IF NOT EXISTS node_webhooks (
 );
 `);
 
+// MIGRATIONS
 // Add grace period columns to nodes if they don't exist
 try { db.exec(`ALTER TABLE nodes ADD COLUMN offline_grace_period INTEGER DEFAULT NULL`); } catch (e) {}
 try { db.exec(`ALTER TABLE nodes ADD COLUMN online_grace_period INTEGER DEFAULT NULL`); } catch (e) {}
+// Add global_broadcast to webhooks if it doesn't exist
+try { db.exec(`ALTER TABLE webhooks ADD COLUMN global_broadcast INTEGER DEFAULT 1`); } catch (e) {}
 
 // Initialize default settings if not present
 const defaultSettings = {
   offline_grace_period: "3", // Consecutive failures before marking offline
   online_grace_period: "2", // Consecutive successes before marking online
   packet_loss_threshold: "100", // Packet loss % to consider a ping "failed"
+  backup_schedule: "0 0 * * *", // Default: Daily at midnight (Stored as cron string, or "disabled")
+  backup_retention_days: "7" // Keep backups for 7 days
 };
 
 for (const [key, value] of Object.entries(defaultSettings)) {
@@ -114,7 +122,6 @@ function warmupCache() {
   console.log("🔥 Warming up stats cache (this may take a moment for large DBs)...");
   const nodes = db.prepare("SELECT id FROM nodes").all();
   
-  // Use a transaction for read consistency if needed, though mostly relevant for writes
   const getLatest = db.prepare("SELECT latency, packet_loss, jitter FROM ping_results WHERE node_id = ? ORDER BY timestamp DESC LIMIT 1");
   const getAvgs = db.prepare(`
     SELECT AVG(jitter) as avgJitter, AVG(packet_loss) as avgLoss 
@@ -129,7 +136,7 @@ function warmupCache() {
     nodeStatsCache[node.id] = {
       latency: last?.latency || null,
       jitter: last?.jitter || 0,
-      packetLoss1h: avgs?.avgLoss || (last?.packet_loss || 0), // Fallback to last known if no avg
+      packetLoss1h: avgs?.avgLoss || (last?.packet_loss || 0), 
       avgJitter1h: avgs?.avgJitter || 0
     };
   });
@@ -164,6 +171,82 @@ function getAllSettings() {
   });
   return settings;
 }
+
+// ============================================
+// BACKUP LOGIC & SCHEDULER
+// ============================================
+
+function performBackup() {
+  const dbPath = path.join(__dirname, "monitor.db");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `beanping-auto-backup-${timestamp}.db`;
+  const backupPath = path.join(__dirname, "backups", filename);
+
+  try {
+    console.log(`📦 Starting automated backup: ${filename}`);
+    // Use SQLite's safe backup API if possible, otherwise copy
+    db.backup(backupPath)
+      .then(() => {
+        console.log(`✅ Backup successful: ${backupPath}`);
+        pruneOldBackups();
+      })
+      .catch((err) => {
+        console.error("❌ Database backup failed:", err);
+      });
+  } catch (error) {
+    console.error("❌ Backup process error:", error);
+  }
+}
+
+function pruneOldBackups() {
+  const retentionDays = getSettingInt("backup_retention_days") || 7;
+  const backupsDir = path.join(__dirname, "backups");
+  
+  fs.readdir(backupsDir, (err, files) => {
+    if (err) return console.error("Error reading backups directory:", err);
+    
+    const now = Date.now();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    
+    files.forEach(file => {
+      if (file.startsWith("beanping-auto-backup-")) {
+        const filePath = path.join(backupsDir, file);
+        fs.stat(filePath, (err, stats) => {
+          if (err) return;
+          
+          const ageInDays = (now - stats.mtimeMs) / msPerDay;
+          if (ageInDays > retentionDays) {
+            fs.unlink(filePath, (err) => {
+              if (err) console.error(`Failed to delete old backup ${file}:`, err);
+              else console.log(`🗑️ Pruned old backup: ${file}`);
+            });
+          }
+        });
+      }
+    });
+  });
+}
+
+function scheduleAutoBackup() {
+  if (backupTask) {
+    backupTask.stop();
+    backupTask = null;
+  }
+
+  const schedule = getSetting("backup_schedule");
+  
+  if (schedule && schedule !== "disabled" && cron.validate(schedule)) {
+    console.log(`🕒 Auto-backup scheduled: ${schedule}`);
+    backupTask = cron.schedule(schedule, () => {
+      performBackup();
+    });
+  } else {
+    console.log("⏸️ Auto-backup disabled or invalid schedule.");
+  }
+}
+
+// Initialize backup schedule
+scheduleAutoBackup();
 
 // ============================================
 // GRACE PERIOD LOGIC
@@ -237,14 +320,12 @@ function evaluateNodeStatus(nodeId, currentDbStatus) {
   let shouldTriggerWebhook = false;
 
   if (currentDbStatus === "online" && consecutiveFailures >= gracePeriods.offline) {
-    // Node was online, now has enough consecutive failures -> go offline
     newStatus = "offline";
     shouldTriggerWebhook = true;
   } else if (
     currentDbStatus === "offline" &&
     consecutiveSuccesses >= gracePeriods.online
   ) {
-    // Node was offline, now has enough consecutive successes -> go online
     newStatus = "online";
     shouldTriggerWebhook = true;
   }
@@ -315,25 +396,33 @@ async function sendWebhook(url, payload) {
   });
 }
 
+// UPDATED ALERT LOGIC
 async function triggerWebhookAlerts(node, oldStatus, newStatus, details = {}) {
   if (oldStatus === newStatus) return;
 
   const isGoingOnline = newStatus === "online";
   const eventType = isGoingOnline ? "node_online" : "node_offline";
   const eventField = isGoingOnline ? "notify_online" : "notify_offline";
+  
+  // Format local timestamp
+  const now = new Date();
+  const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateString = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+  const prettyTime = `${dateString} at ${timeString}`;
 
   const gracePeriods = getNodeGracePeriods(node.id);
 
   const messageText = isGoingOnline
-      ? `🟢 Node "${node.name}" (${node.ip}) is now ONLINE (after ${details.consecutiveSuccesses} successful pings)`
-      : `🔴 Node "${node.name}" (${node.ip}) is now OFFLINE (after ${details.consecutiveFailures} failed pings)`;
+      ? `🟢 Node "${node.name}" (${node.ip}) is now ONLINE\n🕒 Time: ${prettyTime}\n(after ${details.consecutiveSuccesses} successful pings)`
+      : `🔴 Node "${node.name}" (${node.ip}) is now OFFLINE\n🕒 Time: ${prettyTime}\n(after ${details.consecutiveFailures} failed pings)`;
 
   const payload = {
-    content: messageText, // Discord
-    text: messageText,    // Slack/Teams
-    message: messageText, // Generic
+    content: messageText, 
+    text: messageText,    
+    message: messageText, 
     event: eventType,
-    timestamp: new Date().toISOString(),
+    timestamp: now.toISOString(),
+    pretty_timestamp: prettyTime,
     node: {
       id: node.id,
       name: node.name,
@@ -347,15 +436,17 @@ async function triggerWebhookAlerts(node, oldStatus, newStatus, details = {}) {
       : details.consecutiveFailures,
   };
 
-  // Get global webhooks
+  // 1. Get GLOBAL Broadcast Webhooks
+  // Condition: Must be Enabled (Pause switch off) AND set to Global Broadcast
   const globalWebhooks = db
-    .prepare(`SELECT * FROM webhooks WHERE enabled = 1 AND ${eventField} = 1`)
+    .prepare(`SELECT * FROM webhooks WHERE enabled = 1 AND global_broadcast = 1 AND ${eventField} = 1`)
     .all();
 
-  // Get node-specific overrides
+  // 2. Get Node-Specific Overrides
+  // We need to check if the PARENT webhook is enabled too. If parent is disabled (paused), override shouldn't fire.
   const nodeWebhookOverrides = db
     .prepare(
-      `SELECT nw.*, w.url, w.name as webhook_name 
+      `SELECT nw.*, w.url, w.name as webhook_name, w.enabled as master_enabled
        FROM node_webhooks nw
        JOIN webhooks w ON nw.webhook_id = w.id
        WHERE nw.node_id = ?`
@@ -364,21 +455,23 @@ async function triggerWebhookAlerts(node, oldStatus, newStatus, details = {}) {
 
   const overrideWebhookIds = new Set(nodeWebhookOverrides.map((o) => o.webhook_id));
 
-  // Send to global webhooks (unless overridden)
+  // Send Globals (Skip if an override exists, we handle that in the next loop)
   for (const webhook of globalWebhooks) {
     if (overrideWebhookIds.has(webhook.id)) continue;
 
-    console.log(`📤 Sending ${eventType} webhook to: ${webhook.name}`);
+    console.log(`📤 Sending ${eventType} global webhook to: ${webhook.name}`);
     const result = await sendWebhook(webhook.url, payload);
     if (!result.success) {
       console.error(`❌ Webhook failed for ${webhook.name}:`, result.error || result.body);
-    } else {
-      console.log(`✅ Webhook sent successfully to: ${webhook.name}`);
     }
   }
 
-  // Send to node-specific overrides
+  // Send Node-Specific Overrides
   for (const override of nodeWebhookOverrides) {
+    // CRITICAL: Check master switch
+    if (!override.master_enabled) continue; 
+    
+    // Check specific node setting
     if (!override.enabled) continue;
     if (isGoingOnline && !override.notify_online) continue;
     if (!isGoingOnline && !override.notify_offline) continue;
@@ -390,8 +483,6 @@ async function triggerWebhookAlerts(node, oldStatus, newStatus, details = {}) {
         `❌ Webhook failed for ${override.webhook_name}:`,
         result.error || result.body
       );
-    } else {
-      console.log(`✅ Node webhook sent successfully to: ${override.webhook_name}`);
     }
   }
 }
@@ -431,10 +522,6 @@ function pingNode(ip, count = 10) {
 }
 
 function getProblemNodes() {
-  // This query remains somewhat expensive but is now handled by the cron cycle
-  // and emitted via socket, rather than requested on page load by default.
-  // Note: We are relying on the DB here because we need aggregation that is slightly more complex
-  // than simple k/v cache, but we could cache this too if needed.
   return db
     .prepare(
       `SELECT n.id, n.name, n.ip,
@@ -459,16 +546,14 @@ app.get("/api/settings", (req, res) => {
   res.json(getAllSettings());
 });
 
-// API: Update settings
+// API: Update standard settings
 app.put("/api/settings", (req, res) => {
   const { offline_grace_period, online_grace_period, packet_loss_threshold } = req.body;
 
   if (offline_grace_period !== undefined) {
     const val = parseInt(offline_grace_period, 10);
     if (isNaN(val) || val < 1 || val > 60) {
-      return res
-        .status(400)
-        .json({ error: "offline_grace_period must be between 1 and 60" });
+      return res.status(400).json({ error: "offline_grace_period must be between 1 and 60" });
     }
     setSetting("offline_grace_period", val);
   }
@@ -476,9 +561,7 @@ app.put("/api/settings", (req, res) => {
   if (online_grace_period !== undefined) {
     const val = parseInt(online_grace_period, 10);
     if (isNaN(val) || val < 1 || val > 60) {
-      return res
-        .status(400)
-        .json({ error: "online_grace_period must be between 1 and 60" });
+      return res.status(400).json({ error: "online_grace_period must be between 1 and 60" });
     }
     setSetting("online_grace_period", val);
   }
@@ -486,15 +569,45 @@ app.put("/api/settings", (req, res) => {
   if (packet_loss_threshold !== undefined) {
     const val = parseInt(packet_loss_threshold, 10);
     if (isNaN(val) || val < 1 || val > 100) {
-      return res
-        .status(400)
-        .json({ error: "packet_loss_threshold must be between 1 and 100" });
+      return res.status(400).json({ error: "packet_loss_threshold must be between 1 and 100" });
     }
     setSetting("packet_loss_threshold", val);
   }
 
   io.emit("settingsUpdated", getAllSettings());
   res.json(getAllSettings());
+});
+
+// API: Backup Settings
+app.get("/api/settings/backup", (req, res) => {
+  res.json({
+    schedule: getSetting("backup_schedule"),
+    retention: getSetting("backup_retention_days")
+  });
+});
+
+app.post("/api/settings/backup", (req, res) => {
+  const { schedule, retention } = req.body;
+  
+  if (schedule !== undefined) {
+    if (schedule !== "disabled" && !cron.validate(schedule)) {
+      return res.status(400).json({ error: "Invalid cron schedule format" });
+    }
+    setSetting("backup_schedule", schedule);
+  }
+  
+  if (retention !== undefined) {
+    const val = parseInt(retention, 10);
+    if (isNaN(val) || val < 1) {
+      return res.status(400).json({ error: "Retention days must be at least 1" });
+    }
+    setSetting("backup_retention_days", val);
+  }
+
+  // Restart scheduler with new settings
+  scheduleAutoBackup();
+  
+  res.json({ success: true, message: "Backup settings updated" });
 });
 
 // ============================================
@@ -512,8 +625,9 @@ app.get("/api/webhooks/:id", (req, res) => {
   res.json(webhook);
 });
 
+// Create Webhook
 app.post("/api/webhooks", (req, res) => {
-  const { name, url, enabled = true, notify_online = true, notify_offline = true } = req.body;
+  const { name, url, enabled = true, global_broadcast = true, notify_online = true, notify_offline = true } = req.body;
 
   if (!name || !url) {
     return res.status(400).json({ error: "Name and URL are required" });
@@ -526,13 +640,14 @@ app.post("/api/webhooks", (req, res) => {
   }
 
   const stmt = db.prepare(
-    `INSERT INTO webhooks (name, url, enabled, notify_online, notify_offline) 
-     VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO webhooks (name, url, enabled, global_broadcast, notify_online, notify_offline) 
+     VALUES (?, ?, ?, ?, ?, ?)`
   );
   const result = stmt.run(
     name,
     url,
     enabled ? 1 : 0,
+    global_broadcast ? 1 : 0,
     notify_online ? 1 : 0,
     notify_offline ? 1 : 0
   );
@@ -542,29 +657,29 @@ app.post("/api/webhooks", (req, res) => {
   res.json(webhook);
 });
 
+// Update Webhook
 app.put("/api/webhooks/:id", (req, res) => {
-  const { name, url, enabled, notify_online, notify_offline } = req.body;
+  const { name, url, enabled, global_broadcast, notify_online, notify_offline } = req.body;
 
-  if (!name || !url) {
-    return res.status(400).json({ error: "Name and URL are required" });
-  }
+  // Retrieve current state to handle partial updates
+  const current = db.prepare("SELECT * FROM webhooks WHERE id = ?").get(req.params.id);
+  if (!current) return res.status(404).json({ error: "Webhook not found" });
 
-  try {
-    new URL(url);
-  } catch {
-    return res.status(400).json({ error: "Invalid URL format" });
+  if (url) {
+    try { new URL(url); } catch { return res.status(400).json({ error: "Invalid URL format" }); }
   }
 
   db.prepare(
     `UPDATE webhooks 
-     SET name = ?, url = ?, enabled = ?, notify_online = ?, notify_offline = ?
+     SET name = ?, url = ?, enabled = ?, global_broadcast = ?, notify_online = ?, notify_offline = ?
      WHERE id = ?`
   ).run(
-    name,
-    url,
-    enabled ? 1 : 0,
-    notify_online ? 1 : 0,
-    notify_offline ? 1 : 0,
+    name ?? current.name,
+    url ?? current.url,
+    enabled !== undefined ? (enabled ? 1 : 0) : current.enabled,
+    global_broadcast !== undefined ? (global_broadcast ? 1 : 0) : current.global_broadcast,
+    notify_online !== undefined ? (notify_online ? 1 : 0) : current.notify_online,
+    notify_offline !== undefined ? (notify_offline ? 1 : 0) : current.notify_offline,
     req.params.id
   );
 
@@ -742,24 +857,24 @@ app.put("/api/nodes/:id/grace-periods", (req, res) => {
 });
 
 // ============================================
-// EXISTING API ENDPOINTS
+// BACKUP & RESTORE API ENDPOINTS
 // ============================================
 
-app.get("/api/backup", (req, res) => {
+app.get("/api/backup/download", (req, res) => {
   const dbPath = path.join(__dirname, "monitor.db");
-
   if (!fs.existsSync(dbPath)) {
     return res.status(404).json({ error: "Database file not found" });
   }
-
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `beanping-backup-${timestamp}.db`;
-
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.setHeader("Content-Type", "application/octet-stream");
+  fs.createReadStream(dbPath).pipe(res);
+});
 
-  const fileStream = fs.createReadStream(dbPath);
-  fileStream.pipe(res);
+app.post("/api/backup/now", (req, res) => {
+  performBackup();
+  res.json({ success: true, message: "Backup started in background" });
 });
 
 app.post("/api/restore", upload.single("backup"), (req, res) => {
@@ -796,12 +911,14 @@ app.post("/api/restore", upload.single("backup"), (req, res) => {
     fs.unlinkSync(uploadedPath);
 
     db = new Database("monitor.db");
+    
+    // Re-initialize services
+    warmupCache();
+    scheduleAutoBackup();
 
     res.json({ success: true, message: "Database restored successfully" });
 
-    setTimeout(() => {
-      process.exit(0);
-    }, 1000);
+    // Optional: Restart if using PM2, otherwise logic continues with new DB connection
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
@@ -944,10 +1061,6 @@ app.post("/api/traceroute", (req, res) => {
 // ============================================
 
 app.get("/", (req, res) => {
-  // OPTIMIZATION:
-  // Instead of querying averaging logic for every node (N+1 queries),
-  // we fetch nodes and merge with the in-memory cache.
-  
   const nodes = db.prepare("SELECT * FROM nodes").all();
 
   const stats = nodes.map((n) => {
@@ -955,8 +1068,8 @@ app.get("/", (req, res) => {
     return { 
       ...n, 
       latency: cached.latency, 
-      packet_loss: cached.packetLoss1h, // Map 1h Avg to the 'packet_loss' field expected by template
-      avgJitter: cached.avgJitter1h     // Map 1h Avg to the 'avgJitter' field expected by template
+      packet_loss: cached.packetLoss1h, 
+      avgJitter: cached.avgJitter1h     
     };
   });
 
@@ -1008,9 +1121,6 @@ cron.schedule("* * * * *", async () => {
       ).run(node.id, latency, packetLoss, jitter, now);
 
       // --- CALCULATE 1H STATS HERE (Incremental update logic) ---
-      // Instead of querying on read (Dashboard load), we query on write (once per minute per node).
-      // This is efficient because we do it sequentially in background.
-      
       const stats1h = db.prepare(`
         SELECT AVG(packet_loss) as avgLoss, AVG(jitter) as avgJitter
         FROM ping_results 
