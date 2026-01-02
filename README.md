@@ -38,7 +38,7 @@ automation, and webhooks, along with UI enhancements.
 - 🌍 <strong>Global and per-node webhook configuration</strong>
 - ⏸️ <strong>Pause / resume webhooks</strong>
 
-### 🌸 Yuriv2
+### 🌸 Yuri v2
 - 🧿 <strong>New Yuri favicon</strong> (thanks to
   <a href="https://github.com/minoplhy">@minoplhy</a>)
 - 🖼️ <strong>New Yuri logo</strong> (thanks to
